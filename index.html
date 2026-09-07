@@ -141,9 +141,15 @@
   .pmid > * { transform:skewX(13deg); }
   .pmid b { font-size:15px; color:var(--ink); font-weight:800; font-variant-numeric:tabular-nums; }
   .pmid span { font-size:6.5px; letter-spacing:1.4px; color:var(--muted); margin-top:3px; font-weight:700; }
-  .peek { font-size:10.5px; color:var(--muted); padding:7px 4px 0; line-height:1.7;
-          letter-spacing:.3px; font-variant-numeric:tabular-nums; }
-  .peek b { color:var(--ink); font-size:11px; display:inline-block; min-width:34px; }
+  .peek { display:flex; gap:5px; padding:6px 2px 2px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+          scrollbar-width:none; }
+  .peek::-webkit-scrollbar { display:none; }
+  .wk { flex:0 0 auto; }
+  .wk { display:inline-flex; align-items:baseline; gap:5px; padding:4px 8px; border-radius:4px;
+        background:rgba(0,0,0,.035); box-shadow:inset 0 0 0 1px var(--line);
+        font-size:11px; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .wk i { font-style:normal; font-size:8.5px; letter-spacing:.8px; color:var(--muted); font-weight:800; }
+  .wk.dim { color:var(--muted); font-weight:600; }
   .pkick { font-size:9px; letter-spacing:2.2px; color:var(--muted); padding:0 4px 6px; font-weight:700; }
   @media (prefers-reduced-motion:reduce){ .glint::after,.stamp{animation-duration:.2s} }
 </style>

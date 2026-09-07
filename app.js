@@ -148,6 +148,12 @@ CIN:"#FB4F14",CLE:"#5A2D14",DAL:"#041E42",DEN:"#FB4F14",DET:"#0076B6",GB:"#20373
 IND:"#002C5F",JAX:"#006778",KC:"#E31837",LV:"#111111",LAC:"#0080C6",LAR:"#003594",MIA:"#008E97",
 MIN:"#4F2683",NE:"#002244",NO:"#8C7434",NYG:"#0B2265",NYJ:"#125740",PHI:"#004C54",PIT:"#B58500",
 SF:"#AA0000",SEA:"#69BE28",TB:"#D50A0A",TEN:"#2C6FA8",WSH:"#5A1414"};
+const NAMES = {ARI:"Cardinals",ATL:"Falcons",BAL:"Ravens",BUF:"Bills",CAR:"Panthers",CHI:"Bears",
+CIN:"Bengals",CLE:"Browns",DAL:"Cowboys",DEN:"Broncos",DET:"Lions",GB:"Packers",HOU:"Texans",
+IND:"Colts",JAX:"Jaguars",KC:"Chiefs",LV:"Raiders",LAC:"Chargers",LAR:"Rams",MIA:"Dolphins",
+MIN:"Vikings",NE:"Patriots",NO:"Saints",NYG:"Giants",NYJ:"Jets",PHI:"Eagles",PIT:"Steelers",
+SF:"49ers",SEA:"Seahawks",TB:"Buccaneers",TEN:"Titans",WSH:"Commanders"};
+const nameOf = t => NAMES[t] || t;
 const col = t => COLORS[t] || "#555";
 const shade = (hex, amt) => {
   const n = parseInt(String(hex).slice(1),16), cl = v => Math.max(0,Math.min(255,v));
@@ -196,8 +202,8 @@ async function loadSchedule() {
   const year = (S.weekKey.split("-")[1]) || new Date().getFullYear();
   const out = {};
   const weeks = [];
-  for (let w = S.weekNum + 1; w <= Math.min(S.weekNum + 4, 18); w++) weeks.push(w);
-  await Promise.all(weeks.map(async function(w){
+  for (let w = S.weekNum + 1; w <= 18; w++) weeks.push(w);
+  const grab = async function(w){
     try {
       const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=" + w + "&dates=" + year);
       const d = await r.json();
@@ -211,16 +217,22 @@ async function loadSchedule() {
         (out[A] = out[A] || {})[w] = "@" + H;
       });
     } catch (e) { /* week not posted yet */ }
-  }));
+  };
+  for (let i = 0; i < weeks.length; i += 6) {
+    await Promise.all(weeks.slice(i, i + 6).map(grab));
+    S.sched = out; S.schedWeeks = weeks; render();   // fill in as they land
+  }
   S.sched = out; S.schedFor = S.weekKey; S.schedWeeks = weeks;
   render();
 }
-function nextFor(t) {
-  if (!S.sched) return "";
-  const w = S.schedWeeks || [];
-  return w.map(function(n){
+function weekChips(t) {
+  if (!S.sched) return '<span class="wk dim">loading…</span>';
+  return (S.schedWeeks || []).map(function(n){
     const o = (S.sched[t]||{})[n];
-    return '<span style="display:inline-block;min-width:52px">' + "W" + n + " " + (o || "bye") + '</span>';
+    if (!o) return '<span class="wk dim"><i>W'+n+'</i>BYE</span>';
+    const away = o.charAt(0) === "@";
+    const opp = away ? o.slice(1) : o;
+    return '<span class="wk"><i>W'+n+'</i>'+(away?"@":"")+opp+'</span>';
   }).join("");
 }
 
@@ -509,52 +521,54 @@ function survView(me) {
     const by = LGS().surv[wk]; if (wk !== S.weekKey && by[me.id]) used.push(by[me.id]); });
   const alive = aliveState(me.id);
 
-  const rows = S.games.map(function(g){
-    function side(t, tag) {
-      const on = mine === t;
-      const isUsed = used.indexOf(t) > -1;
-      const shut = isUsed || kicked(g) || (lockedIn && !on);
-      const fav = g.fav === t;
-      const vars = "--team:"+col(t)+";--teamHi:"+shade(col(t),32)+";--teamLo:"+shade(col(t),-28)+";--teamMid:"+shade(col(t),-6);
-      return '<button class="seg '+(on?"on":"")+' '+(mine&&!on?"off":"")+'" id="sv-'+g.id+'-'+t+'" style="'+vars+'" '+
-        (shut?"disabled":"")+' onclick="pickSurv(\''+t+'\')">'+
+  // one row per team, sorted by how big a favorite they are
+  const teams = [];
+  S.games.forEach(function(g){
+    teams.push({ t:g.away, g:g, opp:"AT " + g.home, fav:g.fav===g.away });
+    teams.push({ t:g.home, g:g, opp:"VS " + g.away, fav:g.fav===g.home });
+  });
+  teams.sort(function(a,b){
+    const av = a.fav ? -a.g.line : a.g.line, bv = b.fav ? -b.g.line : b.g.line;
+    return av - bv;
+  });
+
+  const rows = teams.map(function(x){
+    const t = x.t, g = x.g;
+    const on = mine === t;
+    const isUsed = used.indexOf(t) > -1;
+    const shut = isUsed || kicked(g) || (lockedIn && !on);
+    const vars = "--team:"+col(t)+";--teamHi:"+shade(col(t),32)+";--teamLo:"+shade(col(t),-28)+";--teamMid:"+shade(col(t),-6);
+    return '<div class="plates">'+
+      '<div class="bug"><button class="seg '+(on?"on":"")+' '+(mine&&!on?"off":"")+'" id="sv-'+g.id+'-'+t+'" '+
+      'style="'+vars+'" '+(shut?"disabled":"")+' onclick="pickSurv(\''+t+'\')">'+
         '<span class="pface"></span><span class="psheen"></span><span class="phair"></span>'+
         (on ? '<svg class="pring"><rect></rect></svg>' : '')+
         '<span class="pinner">'+
-          '<img class="plogo" src="'+logo(t)+'" onerror="this.style.visibility=\'hidden\'" '+
-            (isUsed?'style="opacity:.35"':'')+' />'+
-          '<span style="text-align:left"><span class="pabbr" style="display:block'+(isUsed?";text-decoration:line-through":"")+'">'+t+'</span>'+
-          '<span class="ptag" style="display:block">'+(isUsed?"BURNED":tag)+'</span></span>'+
-          '<span class="pval">'+(fav?"-"+g.line:"+"+g.line)+'</span>'+
-        '</span></button>';
-    }
-    return '<div class="plates"><div class="pkick">'+kickText(g.kick).toUpperCase()+
-      (g.done?" · "+g.as+"-"+g.hs+" FINAL":g.state!=="pre"?" · LIVE":"")+'</div>'+
-      '<div class="bug" id="svbug-'+g.id+'">'+side(g.away,"AWAY")+
-      '<div class="pmid"><b>'+g.line+'</b><span>SPREAD</span></div>'+
-      side(g.home,"HOME")+'</div>'+
-      (S.peek ? '<div class="peek">'+
-        '<div><b>'+g.away+'</b> '+nextFor(g.away)+'</div>'+
-        '<div style="margin-top:3px"><b>'+g.home+'</b> '+nextFor(g.home)+'</div></div>' : "")+
-      '</div>';
+          '<img class="plogo" src="'+logo(t)+'" onerror="this.style.visibility=\'hidden\'" '+(isUsed?'style="opacity:.3"':'')+' />'+
+          '<span style="text-align:left"><span class="pabbr" style="display:block'+(isUsed?";text-decoration:line-through":"")+'">'+nameOf(t)+'</span>'+
+          '<span class="ptag" style="display:block">'+(isUsed?"ALREADY USED":x.opp)+'</span></span>'+
+          '<span class="pval">'+(x.fav?"-"+g.line:"+"+g.line)+'</span>'+
+        '</span></button></div>'+
+      (S.peek ? '<div class="peek">'+weekChips(t)+'</div>' : "")+
+    '</div>';
   }).join("");
 
   return '<main>'+
     '<div class="card" style="padding:14px;display:flex;align-items:center;gap:12px">'+
       (mine ? '<img src="'+logo(mine)+'" width="38" height="38" style="object-fit:contain" onerror="this.style.visibility=\'hidden\'" />' : "")+
-      '<div><div style="font-weight:700">'+(mine?esc(mine)+" to win outright":"One team. Straight up. No line.")+'</div>'+
+      '<div><div style="font-weight:700">'+(mine?esc(nameOf(mine))+" to win outright":"One team. Straight up. No line.")+'</div>'+
       '<div style="font-size:12.5px;color:'+(alive===false?"var(--loss)":"var(--muted)")+';margin-top:3px">'+
       (alive===false?"Eliminated":alive===true?"Still breathing":"Burn a team and it is gone for the season.")+'</div></div></div>'+
     '<button onclick="togglePeek()" style="width:100%;margin:2px 0 10px;padding:11px;border-radius:12px;'+
-      'border:1px dashed var(--line);background:none;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1.4px">'+
-      (S.peek ? (S.sched ? "HIDE THE LOOK AHEAD" : "LOADING THE SCHEDULE...") : "LOOK AHEAD FOUR WEEKS")+'</button>'+
+      'border:1px dashed var(--line);background:none;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:1.6px">'+
+      (S.peek ? (S.sched ? "HIDE UPCOMING GAMES" : "LOADING...") : "SHOW UPCOMING GAMES")+'</button>'+
     (rows || '<div class="note">No games with lines posted yet.</div>')+
-    '<div class="note">The spread is shown for reference. Survivor grades straight up. The look ahead shows who each team plays next, so you can save a team for a softer week.</div>'+
+    '<div class="note">Sorted by the biggest favorite. Survivor grades straight up, the spread is only there to show you how safe a team is.</div>'+
     '<div class="bar"><div class="inner">'+
       (lockedIn
-        ? '<div class="locked"><span>⚡ '+esc(mine)+' locked</span><button class="ghost" onclick="unlockSurv()">Edit</button></div>'
+        ? '<div class="locked"><span>⚡ '+esc(nameOf(mine))+' locked</span><button class="ghost" onclick="unlockSurv()">Edit</button></div>'
         : '<button class="btn '+(mine?"go":"")+'" '+(mine?"":"disabled")+' onclick="lockSurv()">'+
-          (mine?"⚡ Lock in "+mine:"Pick a team first")+'</button>')+
+          (mine?"⚡ Lock in "+nameOf(mine):"Pick a team first")+'</button>')+
     '</div></div></main>';
 }
 
