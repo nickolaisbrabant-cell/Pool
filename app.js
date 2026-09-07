@@ -277,7 +277,9 @@ const lockOf  = w => !!((LGS().lock ||{})[S.weekKey]||{})[w];
 const slockOf = w => !!((LGS().slock||{})[S.weekKey]||{})[w];
 const paidOf  = w => !!((LGS().paid ||{})[S.weekKey]||{})[w];
 const mlockOf = w => ((LGS().mlock||{})[S.weekKey]||{})[w] || null;
-const inPool  = () => ROSTER().filter(m => Object.keys(picksOf(m.id)).length || survOf(m.id));
+const inPool  = () => ROSTER().filter(function(m){
+  return Object.keys(picksOf(m.id)).length || survOf(m.id) || survLosses(m.id).lost > 0;
+});
 const kicked  = g => Date.now() >= new Date(g.kick).getTime();
 
 function graded(g) {
@@ -296,6 +298,26 @@ function record(who) {
   });
   return { w:w, l:l, p:p, pts:pts };
 }
+function survLosses(who) {
+  const res = LGS().res || {}, surv = LGS().surv || {};
+  let lost = 0, weeks = [];
+  Object.keys(surv).forEach(function(wk){
+    const t = surv[wk][who]; if (!t) return;
+    const byGame = res[wk] || {};
+    const gid = Object.keys(byGame).find(function(id){
+      const r = byGame[id]; return r && (r.home === t || r.away === t);
+    });
+    if (!gid) return;
+    const r = byGame[gid];
+    if (r.su !== t && r.su !== "PUSH") { lost++; weeks.push(wk); }
+  });
+  return { lost: lost, weeks: weeks };
+}
+const survStatus = who => {
+  const l = survLosses(who).lost;
+  return l === 0 ? "clean" : l === 1 ? "mulligan" : "out";
+};
+
 function aliveState(who) {
   const sp = survOf(who); if (!sp) return null;
   const g = S.games.find(x => x.home === sp || x.away === sp); if (!g) return null;
@@ -519,7 +541,7 @@ function survView(me) {
   const used = [];
   Object.keys(LGS().surv||{}).forEach(function(wk){
     const by = LGS().surv[wk]; if (wk !== S.weekKey && by[me.id]) used.push(by[me.id]); });
-  const alive = aliveState(me.id);
+  const st = survStatus(me.id);
 
   // one row per team, sorted by how big a favorite they are
   const teams = [];
@@ -557,8 +579,10 @@ function survView(me) {
     '<div class="card" style="padding:14px;display:flex;align-items:center;gap:12px">'+
       (mine ? '<img src="'+logo(mine)+'" width="38" height="38" style="object-fit:contain" onerror="this.style.visibility=\'hidden\'" />' : "")+
       '<div><div style="font-weight:700">'+(mine?esc(nameOf(mine))+" to win outright":"One team. Straight up. No line.")+'</div>'+
-      '<div style="font-size:12.5px;color:'+(alive===false?"var(--loss)":"var(--muted)")+';margin-top:3px">'+
-      (alive===false?"Eliminated":alive===true?"Still breathing":"Burn a team and it is gone for the season.")+'</div></div></div>'+
+      '<div style="font-size:12.5px;color:'+(st==="out"?"var(--loss)":st==="mulligan"?"var(--gold)":"var(--muted)")+';margin-top:3px">'+
+      (st==="out" ? "Eliminated. Two misses is the end."
+       : st==="mulligan" ? "Mulligan used. One more miss and you are out."
+       : "Two lives. Your first miss is forgiven.")+'</div></div></div>'+
     '<button onclick="togglePeek()" style="width:100%;margin:2px 0 10px;padding:11px;border-radius:12px;'+
       'border:1px dashed var(--line);background:none;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:1.6px">'+
       (S.peek ? (S.sched ? "HIDE UPCOMING GAMES" : "LOADING...") : "SHOW UPCOMING GAMES")+'</button>'+
@@ -591,7 +615,8 @@ function boardView(me) {
 function standings(me) {
   const anyGraded = S.games.some(graded);
   const rows = inPool().map(function(m){
-    return { m:m, r:record(m.id), sp:survOf(m.id), al:aliveState(m.id),
+    const st = survStatus(m.id);
+    return { m:m, r:record(m.id), sp:survOf(m.id), al:(st !== "out"), mull:(st === "mulligan"),
              made:Object.keys(picksOf(m.id)).length, lock:lockOf(m.id) };
   }).sort(function(a,b){ return b.r.w-a.r.w || a.r.l-b.r.l || b.made-a.made; });
 
@@ -605,7 +630,7 @@ function standings(me) {
     '<div style="font-size:11.5px;color:var(--muted)">'+x.made+'/'+S.games.length+' in'+
       (x.lock&&!anyGraded?" · locked":"")+
       (x.sp ? (x.m.id===me.id ? " · "+x.sp : " · survivor in") : "")+
-      (x.al===false?" · out":"")+'</div></div>'+
+      (x.al===false?" · out":x.mull?" · mulligan used":"")+'</div></div>'+
     '<div class="rec" style="text-align:right">'+(anyGraded
       ? x.r.pts+'<div style="font-size:11px;color:var(--muted);font-weight:500">'+x.r.w+'-'+x.r.l+(x.r.p?"-"+x.r.p:"")+'</div>'
       : '<span style="color:var(--win);font-size:13px">ready</span>')+'</div></div>';
