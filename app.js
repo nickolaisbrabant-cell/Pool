@@ -746,7 +746,6 @@ function survView(me) {
           '<img class="plogo" src="'+logo(t)+'" onerror="this.style.visibility=\'hidden\'" '+(isUsed?'style="opacity:.3"':'')+' />'+
           '<span style="text-align:left"><span class="pabbr" style="display:block'+(isUsed?";text-decoration:line-through":"")+'">'+nameOf(t)+'</span>'+
           '<span class="ptag" style="display:block">'+(isUsed?"ALREADY USED":x.opp)+'</span></span>'+
-          '<span class="pval">'+(x.fav?"-"+g.line:"+"+g.line)+'</span>'+
         '</span></button></div>'+
       (S.peek ? '<div class="peek">'+weekChips(t)+'</div>' : "")+
     '</div>';
@@ -764,7 +763,7 @@ function survView(me) {
       'border:1px dashed var(--line);background:none;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:1.6px">'+
       (S.peek ? (S.sched ? "HIDE UPCOMING GAMES" : "LOADING...") : "SHOW UPCOMING GAMES")+'</button>'+
     (rows || '<div class="note">No games with lines posted yet.</div>')+
-    '<div class="note">Sorted by the biggest favorite. Survivor grades straight up, the spread is only there to show you how safe a team is.</div>'+
+    '<div class="note">Sorted by the biggest favorite, straight up. Use the schedule to save a team for a softer week.</div>'+
     '<div class="bar"><div class="inner">'+
       (lockedIn
         ? '<div class="locked"><span>⚡ '+esc(nameOf(mine))+' locked</span><button class="ghost" onclick="unlockSurv()">Edit</button></div>'
