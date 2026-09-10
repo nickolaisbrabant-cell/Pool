@@ -977,7 +977,7 @@ function reveal(me) {
       const differs = cmp && !isCmp && theirs && theirs !== p;
       const agrees  = cmp && !isCmp && theirs && theirs === p;
       return '<div class="gcell pick'+(right?" right":"")+(wrong?" wrong":"")+
-        (differs?" differs":"")+(agrees?" agrees":"")+'" style="'+tint(p)+'">'+
+        (differs?" differs":"")+(agrees?" agrees":"")+'" style="'+tint(p)+";--full:"+col(p)+'">'+
         '<img src="'+logo(p)+'" alt="'+p+'" onerror="this.replaceWith(document.createTextNode(\''+p+'\'))" />'+
         (ml?'<i class="mlk'+(inLockOff?" lo":"")+'">'+(inLockOff?'LOCK OFF':'LOCK')+'</i>':'')+
 '</div>';

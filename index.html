@@ -147,9 +147,15 @@
                       font-size:7.5px; letter-spacing:.8px; font-weight:900; line-height:1;
                       padding:2px 0; background:rgba(238,138,60,.85); color:#fff; }
   .gcell.pick i.mlk.lo { background:rgba(15,59,68,.9); color:#F5D9A8; }
+  .gcell.pick.right { background:var(--full); color:#fff;
+                      box-shadow:inset 0 0 0 1px rgba(0,0,0,.12); }
+  .gcell.pick.right img { filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
   .gcell.pick.right::after { content:"✓"; position:absolute; right:4px; top:3px; font-size:10px;
-                             font-weight:900; color:var(--win); }
-  .gcell.pick.wrong { opacity:.45; }
+                             font-weight:900; color:#fff; opacity:.9; }
+  .gcell.pick.wrong { background:rgba(0,0,0,.05); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);
+                      opacity:1; }
+  .gcell.pick.wrong img { filter:grayscale(1); opacity:.4; }
+  .gcell.pick.wrong i.mlk { background:rgba(0,0,0,.18); color:rgba(255,255,255,.85); }
   .gcell.empty { color:var(--line); }
 
 
