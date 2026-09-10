@@ -181,7 +181,7 @@ const CHANDNI_IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgG
 
 /* ============ STATE ============ */
 const S = { lg:localStorage.getItem("lg")||null, me:null, tab:"picks", view:"standings", state:{},
-            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, champs:null, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], copiedLg:false, justPicked:null, paint:"", statsWho:"", cmp:"", join:null, lastInvite:"", copied:"",
+            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, raw:[], champs:null, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], copiedLg:false, justPicked:null, paint:"", statsWho:"", cmp:"", join:null, lastInvite:"", copied:"",
             toast:"", sheet:false };
 const $ = h => { document.getElementById("app").innerHTML = h; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -199,20 +199,26 @@ async function loadGames() {
     const away = c.competitors.find(x => x.homeAway === "away");
     const o = (c.odds && c.odds[0]) || null;
     let fav = null, line = null;
-    if (o && o.details && o.details.indexOf(" -") > -1) {
-      const b = o.details.split(" -"); fav = b[0].trim(); line = parseFloat(b[1]);
+    if (o) {
+      const det = String(o.details || "").trim();
+      if (det.indexOf(" -") > -1) {
+        const b = det.split(" -"); fav = b[0].trim(); line = parseFloat(b[1]);
+      } else if (/^(EVEN|PK|PICK)$/i.test(det) || o.spread === 0) {
+        fav = home.team.abbreviation; line = 0;
+      } else if (typeof o.spread === "number") {
+        // spread is negative for the home side
+        fav = o.spread < 0 ? home.team.abbreviation : away.team.abbreviation;
+        line = Math.abs(o.spread);
+      }
     }
     return { id:ev.id, kick:ev.date, state:c.status.type.state, done:!!c.status.type.completed,
       home:home.team.abbreviation, away:away.team.abbreviation,
       homeName:home.team.shortDisplayName, awayName:away.team.shortDisplayName,
       hs:home.score!=null?Number(home.score):null, as:away.score!=null?Number(away.score):null,
       fav:fav, line:line };
-  }).filter(g => g.fav && g.line != null).sort((a,b) => new Date(a.kick) - new Date(b.kick));
-
-  const sunday = games.find(g => new Date(g.kick).getDay() === 0);
-  const cutoff = sunday ? new Date(sunday.kick).getTime() : Infinity;
-  games.forEach(g => { g.wendell = new Date(g.kick).getTime() < cutoff; });
-  S.games = games;
+  }).sort((a,b) => new Date(a.kick) - new Date(b.kick));
+  S.raw = games;
+  applyLines();
 }
 
 async function loadSchedule() {
@@ -307,6 +313,37 @@ function demoSeed() {
   S.me = "nick"; S.lg = "chandni"; S.ok = true; S.ready = true;
 }
 
+// ESPN sometimes drops the odds block once a game starts, so keep the line we saw
+function applyLines() {
+  const saved = (LGS().lines || {})[S.weekKey] || {};
+  const out = [];
+  const toSave = [];
+  (S.raw || []).forEach(function(g){
+    const g2 = Object.assign({}, g);
+    if (g2.fav && g2.line != null) {
+      const known = saved[g2.id];
+      if (!known || known.fav !== g2.fav || known.line !== g2.line) {
+        toSave.push({ id:g2.id, fav:g2.fav, line:g2.line });
+      }
+    } else if (saved[g2.id]) {
+      g2.fav = saved[g2.id].fav;
+      g2.line = saved[g2.id].line;
+    }
+    out.push(g2);
+  });
+  S.games = out;
+
+  const sunday = out.find(function(g){ return new Date(g.kick).getDay() === 0; });
+  const cutoff = sunday ? new Date(sunday.kick).getTime() : Infinity;
+  out.forEach(function(g){ g.wendell = new Date(g.kick).getTime() < cutoff; });
+
+  if (toSave.length && S.ok && !S.demo && S.lg) {
+    toSave.forEach(function(x){
+      put(P("lines." + S.weekKey + "." + x.id), { fav:x.fav, line:x.line });
+    });
+  }
+}
+
 async function loadState() {
   if (S.demo) return;
   try {
@@ -375,10 +412,11 @@ const kicked  = g => Date.now() >= new Date(g.kick).getTime();
 
 function graded(g) {
   if (!g.done || g.hs == null) return null;
+  const su = g.hs > g.as ? g.home : g.as > g.hs ? g.away : "PUSH";
+  if (g.line == null || !g.fav) return { ats:su, su:su, noline:true };
   const fh = g.fav === g.home;
   const margin = (fh?g.hs:g.as) - (fh?g.as:g.hs);
   const ats = margin > g.line ? g.fav : margin < g.line ? (fh?g.away:g.home) : "PUSH";
-  const su = g.hs > g.as ? g.home : g.as > g.hs ? g.away : "PUSH";
   return { ats:ats, su:su };
 }
 function record(who) {
@@ -683,7 +721,9 @@ function picksView(me) {
     return '<div class="plates"><div class="pkick">'+kickText(g.kick).toUpperCase()+
       (g.done?" · "+g.as+"-"+g.hs+" FINAL":g.state!=="pre"?" · LIVE":"")+'</div>'+
       '<div class="bug" id="bug-'+g.id+'">'+side(g.away,"AWAY")+
-      '<div class="pmid"><b>'+g.line+'</b><span>SPREAD</span></div>'+
+      '<div class="pmid">'+(g.line==null
+        ? '<b style="font-size:11px">NO</b><span>LINE</span>'
+        : '<b>'+g.line+'</b><span>SPREAD</span>')+'</div>'+
       side(g.home,"HOME")+'</div>'+
       (lockBtn?'<div style="padding:5px 2px 0">'+lockBtn+'</div>':"")+'</div>';
   }).join("");
@@ -727,7 +767,8 @@ function survView(me) {
     teams.push({ t:g.home, g:g, opp:"VS " + g.away, fav:g.fav===g.home });
   });
   teams.sort(function(a,b){
-    const av = a.fav ? -a.g.line : a.g.line, bv = b.fav ? -b.g.line : b.g.line;
+    const av = a.g.line == null ? 0 : (a.fav ? -a.g.line : a.g.line);
+    const bv = b.g.line == null ? 0 : (b.fav ? -b.g.line : b.g.line);
     return av - bv;
   });
 
@@ -1393,6 +1434,7 @@ window.setStatsWho = function(id){ S.statsWho = id; render(); };
   render();
   try { await loadGames(); } catch(e) {}
   await loadState();
+  applyLines();
   await archive();
   S.ready = true;
   render();
@@ -1408,6 +1450,7 @@ window.setStatsWho = function(id){ S.statsWho = id; render(); };
       jobs.push(loadGames().catch(function(){}));
     }
     await Promise.all(jobs);
+    applyLines();
     await archive();
     render();
   }, 30000);
