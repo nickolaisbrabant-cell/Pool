@@ -11,7 +11,10 @@ const LEAGUES = {
     copy:{ empty:"Nobody has picked yet. Drop the link in the GroupMe and watch who moves first.",
            missing:"Is this man alive?",
            missingSub:" not touched the card.",
-           tie:"Send your entry to Holden. Meme off, anonymous, group votes." },
+           tie:"Send your entry to Holden. Meme off, anonymous, group votes.",
+           shameOne:"has not touched the card.",
+           shameMany:"have not touched the card.",
+           shameTail:"Rule 7 does not accept excuses." },
     members:[
       { id:"brodsky", name:"Zachary Brodsky", short:"Brodsky", role:"Commissioner, Stats Chair", rings:4, fan:"NYG" },
       { id:"holden",  name:"Holden Bridge",   short:"Holden",  role:"Vice President, Meme Chair", rings:5, fan:"DEN" },
@@ -35,7 +38,10 @@ const LEAGUES = {
     copy:{ empty:"Nobody has picked yet. Send the link around.",
            missing:"Still out",
            missingSub:" not picked yet.",
-           tie:"Tie at the top. Sort it out amongst yourselves." },
+           tie:"Tie at the top. Sort it out amongst yourselves.",
+           shameOne:"has not picked yet.",
+           shameMany:"have not picked yet.",
+           shameTail:"The card closes at kickoff." },
     members:[
       { id:"kyle-m", name:"Kyle Moran",     short:"Kyle M", fan:"DET" },
       { id:"kyle-b", name:"Kyle Blaschuk",  short:"Kyle B", fan:"MIA" },
@@ -715,6 +721,29 @@ function gate() {
   '</main>');
 }
 
+function shameCard(me) {
+  if (!S.games.length) return "";
+  const openGames = S.games.filter(function(g){ return !kicked(g); }).length;
+  if (!openGames) return "";
+  const late = ROSTER().filter(function(m){
+    return m.id !== me.id && Object.keys(picksOf(m.id)).length === 0;
+  });
+  const half = ROSTER().filter(function(m){
+    const n = Object.keys(picksOf(m.id)).length;
+    return m.id !== me.id && n > 0 && n < S.games.length;
+  });
+  if (!late.length && !half.length) return "";
+  return '<div class="shame">'+
+    '<div class="sh-tag">STILL OUTSTANDING</div>'+
+    (late.length ? '<div class="sh-row">'+
+      late.map(function(m){ return '<span class="sh-who">'+crest(m,22)+esc(m.short)+'</span>'; }).join("")+
+      '</div><div class="sh-line">'+(late.length===1?esc(CP("shameOne")):esc(CP("shameMany")))+' '+esc(CP("shameTail"))+'</div>' : "")+
+    (half.length ? '<div class="sh-line half">'+
+      half.map(function(m){ return esc(m.short)+" ("+Object.keys(picksOf(m.id)).length+"/"+S.games.length+")"; }).join(", ")+
+      ' started but did not finish.</div>' : "")+
+  '</div>';
+}
+
 function picksView(me) {
   const mine = picksOf(me.id);
   const ml = mlockOf(me.id);
@@ -753,6 +782,7 @@ function picksView(me) {
   }).join("");
 
   return '<main>'+
+    shameCard(me)+
     (S.ok ? "" : '<div class="warn"><b>Picks are not saving.</b><br>'+esc(S.why)+'</div>')+
     (!FEAT().wendell ? "" : hooked
       ? '<div class="flag"><b>The Wendell Rule is live</b><br>You touched an opener, so you are in for $'+FEE_OF()+' whether or not you finish the card. Pay Corey.</div>'
@@ -1114,8 +1144,8 @@ function sheet(me) {
 }
 
 /* ============ ACTIONS ============ */
-window.go = function(t){ S.tab = t; render(); };
-window.setView = function(v){ S.view = v; render(); };
+window.go = function(t){ S.tab = t; S.cmp = ""; render(); };
+window.setView = function(v){ S.view = v; S.cmp = ""; render(); };
 window.openSheet = function(){ S.sheet = true; render(); };
 window.closeSheet = function(){ S.sheet = false; render(); };
 window.signOut = function(){
