@@ -167,6 +167,11 @@ IND:"#A2AAAD",JAX:"#D7A22A",KC:"#FFB81C",LV:"#A5ACAF",LAC:"#FFC20E",LAR:"#FFA300
 MIN:"#FFC62F",NE:"#C60C30",NO:"#101820",NYG:"#A71930",NYJ:"#C4C9CC",PHI:"#A5ACAF",PIT:"#101820",
 SF:"#B3995D",SEA:"#002244",TB:"#34302B",TEN:"#0C2340",WSH:"#FFB612"};
 const trimOf = t => TRIMS[t] || "#CBB27A";
+function tint(t) {
+  const h = col(t), r = parseInt(h.slice(1,3),16), g = parseInt(h.slice(3,5),16), b = parseInt(h.slice(5,7),16);
+  return "--soft:rgba("+r+","+g+","+b+",.16);--edge:rgba("+r+","+g+","+b+",.42);"+
+         "--edgeStrong:rgba("+r+","+g+","+b+",.95)";
+}
 const readableOn = hex => {
   const v = i => { const c = parseInt(String(hex).slice(i, i+2), 16) / 255;
     return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); };
@@ -314,6 +319,8 @@ function demoSeed() {
 }
 
 // ESPN sometimes drops the odds block once a game starts, so keep the line we saw
+const CLOSING = { "NE@SEA": { fav:"SEA", line:3 } };   // fallback for lines ESPN dropped
+
 function applyLines() {
   const saved = (LGS().lines || {})[S.weekKey] || {};
   const out = [];
@@ -328,6 +335,10 @@ function applyLines() {
     } else if (saved[g2.id]) {
       g2.fav = saved[g2.id].fav;
       g2.line = saved[g2.id].line;
+    } else if (CLOSING[g2.away + "@" + g2.home]) {
+      const k = CLOSING[g2.away + "@" + g2.home];
+      g2.fav = k.fav; g2.line = k.line;
+      toSave.push({ id:g2.id, fav:k.fav, line:k.line });
     }
     out.push(g2);
   });
@@ -519,6 +530,19 @@ function avatarSvg(m, size) {
   '</svg>';
 }
 
+function currentLeaders() {
+  const anyGraded = S.games.some(graded);
+  if (!anyGraded) return {};
+  const rows = inPool().map(function(m){ return { id:m.id, pts:record(m.id).pts }; });
+  if (!rows.length) return {};
+  let best = 0;
+  rows.forEach(function(r){ if (r.pts > best) best = r.pts; });
+  if (!best) return {};
+  const out = {};
+  rows.forEach(function(r){ if (r.pts === best) out[r.id] = best; });
+  return out;
+}
+
 function lastWeekWinners() {
   const n = S.weekNum - 1;
   if (n < 1) return {};
@@ -547,7 +571,7 @@ function lastWeekWinners() {
 function crest(m, size) {
   size = size || 34;
   const ring = m.fan ? col(m.fan) : (m.tint || "#0F3B44");
-  if (S.champs === null) S.champs = lastWeekWinners();
+  if (S.champs === null) S.champs = currentLeaders();
   const crown = (S.champs && S.champs[m.id] && size >= 22)
     ? '<svg class="crown" viewBox="0 0 24 18" style="width:'+Math.max(size*0.52,13)+'px">'+
       '<path d="M2 15 L1 4 L7 8 L12 1 L17 8 L23 4 L22 15 Z" fill="#F0B93F" stroke="#8A5F14" '+
@@ -953,7 +977,7 @@ function reveal(me) {
       const differs = cmp && !isCmp && theirs && theirs !== p;
       const agrees  = cmp && !isCmp && theirs && theirs === p;
       return '<div class="gcell pick'+(right?" right":"")+(wrong?" wrong":"")+
-        (differs?" differs":"")+(agrees?" agrees":"")+'" style="--c:'+col(p)+'">'+
+        (differs?" differs":"")+(agrees?" agrees":"")+'" style="'+tint(p)+'">'+
         '<img src="'+logo(p)+'" alt="'+p+'" onerror="this.replaceWith(document.createTextNode(\''+p+'\'))" />'+
         (ml?'<i class="mlk'+(inLockOff?" lo":"")+'">'+(inLockOff?'LOCK OFF':'LOCK')+'</i>':'')+
 '</div>';
