@@ -61,15 +61,15 @@
   .gridwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line);
               border-radius:16px; background:var(--panel); }
   .gridwrap::-webkit-scrollbar { display:none; }
-  .grid { display:grid; min-width:100%; gap:4px; padding:6px; }
-  .gcell { padding:9px 5px; font-size:14px; font-weight:800; text-align:center;
-           border-radius:9px; display:flex; align-items:center; justify-content:center; gap:3px; }
+  .grid { display:grid; min-width:100%; gap:3px; padding:5px; }
+  .gcell { padding:8px 3px; font-size:13px; font-weight:800; text-align:center;
+           border-radius:8px; display:flex; align-items:center; justify-content:center; gap:2px; }
   .gcell.ghead { position:sticky; top:0; background:var(--panel); font-size:11.5px; letter-spacing:.4px;
                  color:var(--ink); z-index:3; padding:8px 4px; flex-direction:column; gap:3px;
                  border-radius:9px; }
-  .hteams { display:flex; align-items:center; gap:3px; }
-  .hteams img { width:20px; height:20px; object-fit:contain; }
-  .hteams u { text-decoration:none; font-size:8px; color:var(--muted); font-weight:700; }
+  .hteams { display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .hteams img { width:15px; height:15px; object-fit:contain; }
+  .hteams u { text-decoration:none; font-size:6px; color:var(--muted); font-weight:700; }
   .gcell.gname, .gcell.corner { position:sticky; left:0; background:var(--panel); z-index:2;
                  justify-content:flex-start; font-size:13.5px; gap:7px; border-radius:9px;
                  padding:7px 9px 7px 7px; overflow:hidden; }
@@ -140,18 +140,22 @@
                font-variant-numeric:tabular-nums; margin-top:2px; }
   .gcell.gname b { margin-left:auto; font-size:9.5px; letter-spacing:.6px; color:var(--win); }
   .gcell.gname b.live { color:var(--gold); }
-  .gcell.pick { color:var(--ink); background:var(--soft); position:relative; padding:6px 4px 9px;
+  .gcell.pick { color:var(--ink); background:var(--soft); position:relative; padding:5px 2px 8px;
                 overflow:hidden; box-shadow:inset 0 0 0 1px var(--edge); }
-  .gcell.pick img { width:28px; height:28px; object-fit:contain; }
+  .gcell.pick img { width:20px; height:20px; object-fit:contain; }
   .gcell.pick i.mlk { position:absolute; left:0; right:0; bottom:0; font-style:normal;
-                      font-size:7.5px; letter-spacing:.8px; font-weight:900; line-height:1;
+                      font-size:6px; letter-spacing:.2px; font-weight:900; line-height:1;
                       padding:2px 0; background:rgba(238,138,60,.85); color:#fff; }
   .gcell.pick i.mlk.lo { background:rgba(15,59,68,.9); color:#F5D9A8; }
   .gcell.pick.right { background:var(--full); color:#fff;
                       box-shadow:inset 0 0 0 1px rgba(0,0,0,.12); }
   .gcell.pick.right img { filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
-  .gcell.pick.right::after { content:"✓"; position:absolute; right:4px; top:3px; font-size:10px;
+  .gcell.pick.right::after { content:"✓"; position:absolute; right:2px; top:1px; font-size:8px;
                              font-weight:900; color:#fff; opacity:.9; }
+  .gcell.pick.push { background:rgba(0,0,0,.045); box-shadow:inset 0 0 0 1px var(--line); }
+  .gcell.pick.push img { filter:grayscale(.35); opacity:.75; }
+  .gcell.pick.push::after { content:"P"; position:absolute; right:3px; top:2px; font-size:7px;
+                            font-weight:900; color:var(--muted); }
   .gcell.pick.wrong { background:rgba(0,0,0,.05); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);
                       opacity:1; }
   .gcell.pick.wrong img { filter:grayscale(1); opacity:.4; }

@@ -950,7 +950,11 @@ function reveal(me) {
   if (!open.length) return '<div class="card" style="padding:18px"><div style="font-size:14px;color:var(--muted);line-height:1.5">Sealed until kickoff. Every card opens here the second its game starts, one game at a time.</div></div>';
 
   const players = inPool().map(function(m){ return { m:m, r:record(m.id), pot:potential(m.id) }; })
-    .sort(function(a,b){ return b.r.pts - a.r.pts; });
+    .sort(function(a,b){
+      if (b.r.pts !== a.r.pts) return b.r.pts - a.r.pts;     // points on the board
+      if (b.pot.max !== a.pot.max) return b.pot.max - a.pot.max; // then the higher ceiling
+      return a.m.short.localeCompare(b.m.short);
+    });
   const leader = players.length ? players[0] : null;
   const cmpId = S.cmp || null;
   const cmp = players.find(function(x){ return x.m.id === cmpId; });
@@ -1002,11 +1006,12 @@ function reveal(me) {
       const r = graded(g);
       const ml = mlockOf(x.m.id) === g.id;
       const inLockOff = ml && loGames[g.id];
-      const right = r && r.ats === p, wrong = r && r.ats !== p && r.ats !== "PUSH";
+      const push = r && r.ats === "PUSH";
+      const right = r && !push && r.ats === p, wrong = r && !push && r.ats !== p;
       const theirs = cmp ? picksOf(cmp.m.id)[g.id] : null;
       const differs = cmp && !isCmp && theirs && theirs !== p;
       const agrees  = cmp && !isCmp && theirs && theirs === p;
-      return '<div class="gcell pick'+(right?" right":"")+(wrong?" wrong":"")+
+      return '<div class="gcell pick'+(right?" right":"")+(wrong?" wrong":"")+(push?" push":"")+
         (differs?" differs":"")+(agrees?" agrees":"")+'" style="'+tint(p)+";--full:"+col(p)+'">'+
         '<img src="'+logo(p)+'" alt="'+p+'" onerror="this.replaceWith(document.createTextNode(\''+p+'\'))" />'+
         (ml?'<i class="mlk'+(inLockOff?" lo":"")+'">'+(inLockOff?'LOCK OFF':'LOCK')+'</i>':'')+
@@ -1054,7 +1059,7 @@ function reveal(me) {
   }
 
   const grid = '<div class="gridwrap"><div class="grid" style="grid-template-columns:158px repeat('+
-    open.length+',minmax(56px,1fr))">'+head+body+'</div></div>';
+    open.length+',minmax(30px,34px))">'+head+body+'</div></div>';
 
   return eggs +
     '<div class="cmpbar"><div class="cmplabel">COMPARE WITH</div><div class="cmprow">'+chips+'</div></div>'+
