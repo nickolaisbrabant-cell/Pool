@@ -71,18 +71,23 @@
   .hteams img { width:20px; height:20px; object-fit:contain; }
   .hteams u { text-decoration:none; font-size:8px; color:var(--muted); font-weight:700; }
   .gcell.gname, .gcell.corner { position:sticky; left:0; background:var(--panel); z-index:2;
-                 justify-content:flex-start; font-size:13.5px; gap:6px; border-radius:9px; }
+                 justify-content:flex-start; font-size:13.5px; gap:7px; border-radius:9px;
+                 padding:7px 9px 7px 7px; overflow:hidden; }
+  .gninner { display:flex; flex-direction:column; align-items:flex-start; min-width:0; flex:1; gap:1px; }
+  .gnname { font-size:13px; font-weight:800; line-height:1.15; max-width:100%;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gnsub { display:flex; align-items:baseline; gap:6px; }
   .gcell.gname.lead { background:linear-gradient(90deg, rgba(238,138,60,.22), rgba(238,138,60,.04));
                       box-shadow:inset 0 0 0 2px var(--gold); }
-  .gcell.gname u { text-decoration:none; font-size:11px; color:var(--muted); font-weight:800;
-                   margin-left:5px; font-variant-numeric:tabular-nums; }
+  .gcell.gname u { text-decoration:none; font-size:10px; color:var(--muted); font-weight:700;
+                   letter-spacing:.3px; font-variant-numeric:tabular-nums; }
   .gcell.muted { opacity:.22; }
   .gcell.gname.muted { opacity:.35; }
   .gcell.corner { z-index:4; }
   .gcell.ghead span { color:var(--muted); font-weight:700; font-size:8.5px; display:block; }
   .gcell.ghead b { display:block; font-size:9px; color:var(--win); letter-spacing:.6px; font-weight:900; }
   .gcell.ghead b.live { color:var(--gold); }
-  .gcell.gname b { margin-left:auto; font-size:22px; line-height:1; color:var(--ink); font-weight:900;
+  .gcell.gname b { font-size:20px; line-height:1; color:var(--ink); font-weight:900;
                    font-variant-numeric:tabular-nums; }
   .gcell.gname.me { background:rgba(0,0,0,.04); }
   .gcell.gname.cmp { box-shadow:inset 3px 0 0 var(--gold); }

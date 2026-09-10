@@ -983,8 +983,9 @@ function reveal(me) {
 '</div>';
     }).join("");
     return '<div class="gcell gname'+(isMe?" me":"")+(isCmp?" cmp":"")+(isLead?" lead":"")+
-      (muted?" muted":"")+'">'+crest(x.m,24)+esc(x.m.short)+
-      '<b>'+x.r.pts+'</b><u>'+x.pot.max+'</u></div>'+
+      (muted?" muted":"")+'">'+crest(x.m,26)+
+      '<span class="gninner"><span class="gnname">'+esc(x.m.short)+'</span>'+
+      '<span class="gnsub"><b>'+x.r.pts+'</b><u>max '+x.pot.max+'</u></span></span></div>'+
       cells.replace(/class="gcell pick/g, 'class="gcell pick'+(muted?" muted":""));
   }).join("");
 
@@ -1022,7 +1023,7 @@ function reveal(me) {
         ? '<div class="note">A tie goes to whoever guessed closest on the total.</div>' : "");
   }
 
-  const grid = '<div class="gridwrap"><div class="grid" style="grid-template-columns:132px repeat('+
+  const grid = '<div class="gridwrap"><div class="grid" style="grid-template-columns:158px repeat('+
     open.length+',minmax(56px,1fr))">'+head+body+'</div></div>';
 
   return eggs +
