@@ -26,16 +26,18 @@
   .gh-kicker { font-size:11px; letter-spacing:5px; font-weight:900; color:var(--ink); padding:13px 0; }
 
   .lgstack { display:flex; flex-direction:column; gap:12px; }
-  .lgcard { position:relative; display:flex; align-items:center; gap:13px; width:100%; text-align:left;
-            height:104px; padding:0 14px 0 18px; border-radius:16px; overflow:hidden;
+  .lgcard { position:relative; display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+            height:112px; padding:0 14px 0 16px; border-radius:16px; overflow:hidden;
             background:linear-gradient(135deg, var(--lgPanel) 0%, var(--lgSand) 100%);
             border:1px solid var(--lgLine); box-shadow:0 2px 10px -6px rgba(0,0,0,.35); }
   .lg-stripe { position:absolute; left:0; top:0; bottom:0; width:6px;
                background:linear-gradient(180deg, var(--lgAccent), var(--lgGold)); }
-  .lg-badge { display:flex; align-items:center; justify-content:center; width:66px; height:64px; flex-shrink:0; }
-  .lg-word { display:flex; align-items:center; }
+  .lg-badge { display:flex; align-items:center; justify-content:center; width:118px; height:72px;
+              flex-shrink:0; }
+  .lg-badge svg { max-width:100%; max-height:100%; height:auto; }
+  .lg-word { display:flex; align-items:center; justify-content:center; width:100%; }
   .lg-body { flex:1; min-width:0; }
-  .lg-name { display:block; font-size:16.5px; font-weight:800; color:var(--lgInk); line-height:1.25; }
+  .lg-name { display:block; font-size:15.5px; font-weight:800; color:var(--lgInk); line-height:1.25; }
   .lg-meta { display:block; font-size:9.5px; letter-spacing:1.8px; font-weight:800; margin-top:5px;
              color:var(--lgAccent); }
   .lg-go { font-size:26px; line-height:1; color:var(--lgAccent); opacity:.55; padding-right:2px; }
@@ -241,6 +243,11 @@
     .splatblob, .splatcard, .splat { animation:none; }
     .splatblob { transform:scale(1) rotate(var(--rot)); opacity:1; }
   }
+  .numwrap { display:inline-flex; align-items:center; gap:5px; margin-left:auto; }
+  .numwrap span { font-size:9px; letter-spacing:1.4px; font-weight:800; color:var(--muted); }
+  .numwrap input { width:44px; padding:5px 6px; text-align:center; font-size:15px; font-weight:900;
+                   border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink);
+                   font-variant-numeric:tabular-nums; }
   .swatches { display:flex; flex-wrap:wrap; gap:8px; margin-top:9px; }
   .swatch { width:34px; height:34px; border-radius:17px; border:none; padding:0;
             box-shadow:inset 0 0 0 2px rgba(255,255,255,.55), 0 0 0 1px var(--line); }
@@ -420,6 +427,15 @@
   <linearGradient id="chromeGoldEdge" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stop-color="#FFF3D2"/><stop offset="50%" stop-color="#8A5F14"/>
     <stop offset="100%" stop-color="#F6DCA0"/>
+  </linearGradient>
+  <linearGradient id="chromeGarnet" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#F6DCE2"/><stop offset="30%" stop-color="#C2647A"/>
+    <stop offset="49%" stop-color="#8E3A4C"/><stop offset="51%" stop-color="#4E1C28"/>
+    <stop offset="70%" stop-color="#A44D62"/><stop offset="100%" stop-color="#F2CFD8"/>
+  </linearGradient>
+  <linearGradient id="chromeGarnetEdge" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FFF3D2"/><stop offset="45%" stop-color="#CEB888"/>
+    <stop offset="55%" stop-color="#8A6B2C"/><stop offset="100%" stop-color="#F2DFAE"/>
   </linearGradient>
   <linearGradient id="wmGloss" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".55"/>

@@ -7,7 +7,7 @@ const LEAGUES = {
     theme:{ page:"#E7EFEC", sand:"#EFE4CE", panel:"#FDFCF7", ink:"#0F3B44", blue:"#1C7C8C",
             gold:"#EE8A3C", muted:"#65807F", line:"#D6DFD9", win:"#177E63", loss:"#C4523F",
             crest:"#0F3B44" },
-    features:{ trophy:true, history:true, stats:true, ledger:true, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word" },
+    features:{ trophy:true, history:true, stats:true, ledger:true, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word", tone:"gold" },
     copy:{ empty:"Nobody has picked yet. Drop the link in the GroupMe and watch who moves first.",
            missing:"Is this man alive?",
            missingSub:" not touched the card.",
@@ -34,7 +34,7 @@ const LEAGUES = {
     theme:{ page:"#F3EEE4", sand:"#EDE5D6", panel:"#FFFFFF", ink:"#3A1620", blue:"#782F40",
             gold:"#CEB888", muted:"#7A6B66", line:"#E0D6C6", win:"#2E6B54", loss:"#A8342C",
             crest:"#782F40" },
-    features:{ trophy:true, ledger:false, lore:false, sass:false, wendell:false, blast:"photo", badge:"shield",
+    features:{ trophy:true, ledger:false, lore:false, sass:false, wendell:false, blast:"photo", badge:"word", tone:"garnet",
                period:{ length:6, buyIn:100 } },
     copy:{ empty:"Nobody has picked yet. Send the link around.",
            missing:"Still out",
@@ -65,7 +65,7 @@ function wordmark(text, size, tone) {
   const w = Math.round(size * 0.62 * t.length + size * 0.5);
   const h = Math.round(size * 1.5);
   const base = size, y = Math.round(size * 1.06), mid = Math.round(w / 2);
-  const id = tone === "gold" ? "chromeGold" : "chromeSteel";
+  const id = tone === "garnet" ? "chromeGarnet" : tone === "steel" ? "chromeSteel" : "chromeGold";
   const common = 'x="'+mid+'" y="'+y+'" text-anchor="middle" font-size="'+base+'" '+
     'font-family="Impact, Haettenschweiler, \'Arial Narrow\', sans-serif" '+
     'letter-spacing="'+(size*0.01)+'" textLength="'+(w - size*0.5)+'" lengthAdjust="spacingAndGlyphs"';
@@ -78,19 +78,6 @@ function wordmark(text, size, tone) {
     '</g></svg>';
 }
 
-function shield(size) {
-  size = size || 40;
-  return '<svg width="'+size+'" height="'+(size*1.18)+'" viewBox="0 0 100 120" style="display:block;flex-shrink:0">'+
-    '<path d="M50 3 C32 12 16 14 7 14 C7 58 16 95 50 117 C84 95 93 58 93 14 C84 14 68 12 50 3 Z" '+
-      'fill="#782F40" stroke="#CEB888" stroke-width="5" stroke-linejoin="round"/>'+
-    '<path d="M50 12 C35 19 22 21 14 21 C14 57 22 88 50 107 C78 88 86 57 86 21 C78 21 65 19 50 12 Z" '+
-      'fill="none" stroke="rgba(255,255,255,.22)" stroke-width="2"/>'+
-    '<g fill="#CEB888"><circle cx="34" cy="33" r="3.4"/><circle cx="50" cy="30" r="3.4"/><circle cx="66" cy="33" r="3.4"/></g>'+
-    '<text x="50" y="66" text-anchor="middle" fill="#FFFFFF" font-size="27" font-weight="900" font-style="italic" '+
-      'letter-spacing="-1.5" font-family="-apple-system,Helvetica,sans-serif">OMWC</text>'+
-    '<ellipse cx="50" cy="86" rx="15" ry="9" fill="none" stroke="#CEB888" stroke-width="3"/>'+
-    '<path d="M42 86 h16 M50 81 v10" stroke="#CEB888" stroke-width="2.4" stroke-linecap="round"/></svg>';
-}
 const MEMBERS_OF = () => LG().members;
 const FEAT = () => LG().features;
 const nameOverride = id => ((LGS().names || {})[id]) || null;
@@ -708,6 +695,7 @@ function say(t) { S.toast = t; render(); setTimeout(function(){ S.toast=""; rend
 const PALETTE = ["#1C7C8C","#782F40","#0B2265","#177E63","#B58500","#8C3A2B","#4F2683","#0F3B44",
                  "#C4523F","#2C6FA8","#5A6E2F","#101820"];
 const colorOf = id => ((LGS().colors || {})[id]) || null;
+const numberOf = id => { const n = (LGS().numbers || {})[id]; return (n === 0 || n) ? n : null; };
 
 function avatarSvg(m, size) {
   const custom = colorOf(m.id);
@@ -717,7 +705,8 @@ function avatarSvg(m, size) {
   let h = 0; for (const ch of String(m.id)) h = (h*31 + ch.charCodeAt(0)) >>> 0;
   const skins = ["#E8B98E","#C98C5E","#8C5A38","#F0D0AE","#6B4429"];
   const skin = skins[h % skins.length];
-  const num = (h % 89) + 10;
+  const set = numberOf(m.id);
+  const num = (set === 0 || set) ? set : (h % 89) + 10;
   const light = readableOn(main) === "#141414";
   return '<svg viewBox="0 0 64 64" width="'+size+'" height="'+size+'" style="display:block">'+
     '<circle cx="32" cy="32" r="32" fill="'+main+'"/>'+
@@ -862,9 +851,7 @@ function applyTheme() {
 function leagueGate() {
   const cards = Object.keys(LEAGUES).map(function(k){
     const L = LEAGUES[k];
-    const badge = L.features.badge === "shield"
-      ? shield(52)
-      : '<div class="lg-word">'+wordmark(L.name, 22, "gold")+'</div>';
+    const badge = '<div class="lg-word">'+wordmark(L.name, 30, L.features.tone || "gold")+'</div>';
     return '<button class="lgcard" onclick="setLeague(\''+k+'\')" style="'+
       '--lgInk:'+L.theme.ink+';--lgPanel:'+L.theme.panel+';--lgAccent:'+L.theme.blue+
       ';--lgGold:'+L.theme.gold+';--lgLine:'+L.theme.line+';--lgSand:'+L.theme.sand+'">'+
@@ -955,14 +942,10 @@ function render() {
    '<header><div>'+
      (canSwitch()
        ? '<button onclick="switchLeague()" style="background:none;border:none;padding:0;text-align:left">'+
-         (FEAT().badge==="shield"
-           ? '<div class="mark" style="font-size:26px;text-shadow:1.4px 1.4px 0 var(--gold)">'+esc(LG().name)+'</div>'
-           : wordmark(LG().name, 26, "gold"))+
+         wordmark(LG().name, 26, FEAT().tone || "gold")+
          '<div class="sub">'+(LG().est?esc(LG().est)+" · ":"")+esc(S.weekLabel)+' · tap to switch league</div></button>'
-       : '<div style="display:flex;align-items:center;gap:9px">'+(FEAT().badge==="shield"?shield(28):"")+
-         '<div>'+(FEAT().badge==="shield"
-           ? '<div class="mark" style="font-size:26px;text-shadow:1.4px 1.4px 0 var(--gold)">'+esc(LG().name)+'</div>'
-           : wordmark(LG().name, 26, "gold"))+
+       : '<div style="display:flex;align-items:center;gap:9px">'+
+         '<div>'+wordmark(LG().name, 26, FEAT().tone || "gold")+
          '<div class="sub">'+(LG().est?esc(LG().est)+" · ":"")+esc(S.weekLabel)+'</div></div></div>')+
    '</div>'+
    '<button style="background:none;border:none;display:flex;align-items:center;gap:8px" onclick="openSheet()">'+
@@ -987,9 +970,8 @@ function render() {
 
 function gate() {
   $('<main style="padding:44px 18px">'+
-    (FEAT().badge === "shield"
-      ? '<div style="display:flex;justify-content:center;margin-bottom:6px">'+shield(78)+'</div>'
-      : '<div style="display:flex;justify-content:center;margin-bottom:2px">'+wordmark(LG().name, 46, "gold")+'</div>')+
+    '<div style="display:flex;justify-content:center;margin-bottom:2px">'+
+      wordmark(LG().name, 46, FEAT().tone || "gold")+'</div>'+
     '<div style="font-size:9.5px;letter-spacing:2.6px;font-weight:800;color:var(--muted);margin-top:10px">SELECT YOUR NAME</div>'+
     (S.ok ? "" : '<div class="warn"><b>Storage is not connected.</b><br>'+esc(S.why)+'</div>')+
     '<div class="card" style="margin-top:18px">'+
@@ -1522,7 +1504,13 @@ function sheet(me) {
     '<div style="margin-top:12px;padding:12px 14px;border-radius:12px;font-size:13px;border:1px solid '+(hooked?"var(--gold);background:#FDF0DE":"var(--line)")+'">'+
       (hooked ? "Rule 7 has you. $"+FEE_OF()+" to Corey this week." : "Nothing owed yet. Touch an opener and that changes.")+'</div>'+
     '<div style="margin-top:16px">'+
-      '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">AVATAR COLOUR</div>'+
+      '<div style="display:flex;align-items:baseline;gap:10px">'+
+        '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">AVATAR COLOUR</div>'+
+        '<div class="numwrap"><span>NO.</span>'+
+          '<input inputmode="numeric" maxlength="2" value="'+(numberOf(me.id)!=null?numberOf(me.id):"")+'" '+
+            'placeholder="'+String((function(){ let h=0; for (const ch of String(me.id)) h=(h*31+ch.charCodeAt(0))>>>0; return (h%89)+10; })())+'" '+
+            'onchange="setNumber(this.value)" /></div>'+
+      '</div>'+
       '<div class="swatches">'+
         PALETTE.map(function(c){
           return '<button class="swatch'+(colorOf(me.id)===c?" on":"")+'" style="background:'+c+'" '+
@@ -1812,6 +1800,11 @@ function statsView(me) {
     '<div class="card">' + leagueRows + '</div>' +
     '<div class="note">Records build week by week as games finish. Nobody has to enter anything.</div>';
 }
+window.setNumber = async function(v){
+  const raw = String(v).replace(/[^0-9]/g, "").slice(0, 2);
+  await put(P("numbers." + S.me), raw === "" ? null : Number(raw));
+  render();
+};
 window.setColor = async function(c){
   await put(P("colors." + S.me), c || null);
   render();
