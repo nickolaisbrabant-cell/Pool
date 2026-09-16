@@ -7,7 +7,7 @@ const LEAGUES = {
     theme:{ page:"#E7EFEC", sand:"#EFE4CE", panel:"#FDFCF7", ink:"#0F3B44", blue:"#1C7C8C",
             gold:"#EE8A3C", muted:"#65807F", line:"#D6DFD9", win:"#177E63", loss:"#C4523F",
             crest:"#0F3B44" },
-    features:{ trophy:true, ledger:true, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word" },
+    features:{ trophy:true, history:true, stats:true, ledger:true, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word" },
     copy:{ empty:"Nobody has picked yet. Drop the link in the GroupMe and watch who moves first.",
            missing:"Is this man alive?",
            missingSub:" not touched the card.",
@@ -34,7 +34,8 @@ const LEAGUES = {
     theme:{ page:"#F3EEE4", sand:"#EDE5D6", panel:"#FFFFFF", ink:"#3A1620", blue:"#782F40",
             gold:"#CEB888", muted:"#7A6B66", line:"#E0D6C6", win:"#2E6B54", loss:"#A8342C",
             crest:"#782F40" },
-    features:{ trophy:false, ledger:false, lore:false, sass:false, wendell:false, blast:"photo", badge:"shield" },
+    features:{ trophy:true, ledger:false, lore:false, sass:false, wendell:false, blast:"photo", badge:"shield",
+               period:{ length:6, buyIn:100 } },
     copy:{ empty:"Nobody has picked yet. Send the link around.",
            missing:"Still out",
            missingSub:" not picked yet.",
@@ -59,6 +60,24 @@ const SWITCHERS = ["nick"];            // member ids allowed to change leagues
 const canSwitch = () => S.me && SWITCHERS.indexOf(S.me) > -1;
 const LG = () => LEAGUES[S.lg] || LEAGUES.chandni;
 const CP = k => (LG().copy || {})[k] || "";
+function wordmark(text, size, tone) {
+  const t = String(text).toUpperCase();
+  const w = Math.round(size * 0.62 * t.length + size * 0.5);
+  const h = Math.round(size * 1.5);
+  const base = size, y = Math.round(size * 1.06), mid = Math.round(w / 2);
+  const id = tone === "gold" ? "chromeGold" : "chromeSteel";
+  const common = 'x="'+mid+'" y="'+y+'" text-anchor="middle" font-size="'+base+'" '+
+    'font-family="Impact, Haettenschweiler, \'Arial Narrow\', sans-serif" '+
+    'letter-spacing="'+(size*0.01)+'" textLength="'+(w - size*0.5)+'" lengthAdjust="spacingAndGlyphs"';
+  return '<svg class="wm" viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" style="display:block">'+
+    '<g transform="skewX(-9)" transform-origin="'+mid+' '+y+'">'+
+      '<text '+common+' fill="none" stroke="#0A1418" stroke-width="'+(size*0.16)+'" stroke-linejoin="round">'+esc(t)+'</text>'+
+      '<text '+common+' fill="none" stroke="url(#'+id+'Edge)" stroke-width="'+(size*0.085)+'" stroke-linejoin="round">'+esc(t)+'</text>'+
+      '<text '+common+' fill="url(#'+id+')">'+esc(t)+'</text>'+
+      '<text '+common+' fill="url(#wmGloss)">'+esc(t)+'</text>'+
+    '</g></svg>';
+}
+
 function shield(size) {
   size = size || 40;
   return '<svg width="'+size+'" height="'+(size*1.18)+'" viewBox="0 0 100 120" style="display:block;flex-shrink:0">'+
@@ -146,6 +165,26 @@ const SASS = {
   dead:["Survivor over. Your team let you down and everyone saw it.",
         "Eliminated. Burn that logo out of your profile."]
 };
+const WORDS = [
+  { w:"Backdoor", d:"A late score that flips the spread and nothing else." },
+  { w:"Chalk", d:"The favourite. Taking chalk is safe and joyless." },
+  { w:"Juice", d:"The cut the book takes. You pay it whether you win or lose." },
+  { w:"Middle", d:"When the line moves enough that both sides can cash." },
+  { w:"Fade", d:"Betting against someone on purpose." },
+  { w:"Steam", d:"Money moving one way fast enough to drag the line with it." },
+  { w:"Dog", d:"The underdog. Points in your pocket before kickoff." },
+  { w:"Hook", d:"The half point. It has ended more friendships than money has." },
+  { w:"Lock", d:"A guarantee, right up until it is not." },
+  { w:"Sharp", d:"Someone the book actually worries about." },
+  { w:"Square", d:"Everyone else." },
+  { w:"Cover", d:"Beating the number, not just the other team." },
+  { w:"Push", d:"A tie against the number. Nobody wins, nobody learns." },
+  { w:"Buyback", d:"Doubling down to chase a loss. Rarely ends well." },
+  { w:"Bad beat", d:"Losing in a way you will still be describing in March." },
+  { w:"Sweat", d:"The last four minutes of a game you have money on." },
+  { w:"Teaser", d:"Moving the line in your favour and paying for the privilege." },
+  { w:"Handle", d:"Total money wagered. Not the same as profit." }
+];
 const seeded = (arr, seed) => { let h=0; for (const c of String(seed)) h=(h*31+c.charCodeAt(0))>>>0; return arr[h%arr.length]; };
 function sassFor(m, w, l, made, total, alive) {
   if (alive === false) return seeded(SASS.dead, m.id);
@@ -191,8 +230,8 @@ const logo = t => "https://a.espncdn.com/i/teamlogos/nfl/500/" + String(t||"").t
 const CHANDNI_IMG = "data:image/jpeg;base64,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";
 
 /* ============ STATE ============ */
-const S = { lg:localStorage.getItem("lg")||null, me:null, tab:"picks", view:"standings", state:{},
-            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, raw:[], champs:null, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], copiedLg:false, justPicked:null, paint:"", statsWho:"", cmp:"", join:null, lastInvite:"", copied:"",
+const S = { lg:localStorage.getItem("lg")||null, me:null, tab:"picks", view:"season", state:{},
+            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, raw:[], champs:null, splat:null, splatSeen:false, throwing:false, back:0, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], justPicked:null, paint:"", cmp:"", join:null, lastInvite:"", copied:"",
             toast:"", sheet:false };
 const $ = h => { document.getElementById("app").innerHTML = h; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -402,9 +441,168 @@ const picksOf = w => ((LGS().picks||{})[S.weekKey]||{})[w] || {};
 const survOf  = w => ((LGS().surv ||{})[S.weekKey]||{})[w] || null;
 const lockOf  = w => !!((LGS().lock ||{})[S.weekKey]||{})[w];
 const slockOf = w => !!((LGS().slock||{})[S.weekKey]||{})[w];
-const paidOf  = w => !!((LGS().paid ||{})[S.weekKey]||{})[w];
+const fullOf  = w => !!((LGS().full || {})[w]);
+const paidOf  = w => fullOf(w) || !!((LGS().paid ||{})[S.weekKey]||{})[w];
 const mlockOf = w => ((LGS().mlock||{})[S.weekKey]||{})[w] || null;
 const tbOf    = w => ((LGS().tb   ||{})[S.weekKey]||{})[w];
+function pointsInWeek(who, wk) {
+  const picks = ((LGS().picks||{})[wk]||{})[who], res = (LGS().res||{})[wk];
+  if (!picks || !res) return 0;
+  const ml = ((LGS().mlock||{})[wk]||{})[who];
+  let pts = 0;
+  Object.keys(picks).forEach(function(gid){
+    const r = res[gid]; if (!r || r.ats === "PUSH") return;
+    if (r.ats === picks[gid]) pts += (ml === gid ? 2 : 1);
+  });
+  return pts;
+}
+function archivedWeeks() {
+  const res = LGS().res || {};
+  return Object.keys(res).sort(function(a,b){
+    return (parseInt(a.slice(1),10)||0) - (parseInt(b.slice(1),10)||0);
+  });
+}
+function weekWinners(wk) {
+  const picks = (LGS().picks || {})[wk] || {};
+  let best = 0; const tally = {};
+  Object.keys(picks).forEach(function(who){
+    const p = pointsInWeek(who, wk);
+    tally[who] = p; if (p > best) best = p;
+  });
+  if (!best) return [];
+  return Object.keys(tally).filter(function(who){ return tally[who] === best; });
+}
+function weeksWonTally() {
+  const out = {};
+  archivedWeeks().forEach(function(wk){
+    weekWinners(wk).forEach(function(id){ out[id] = (out[id] || 0) + 1; });
+  });
+  return out;
+}
+function periodsWonTally() {
+  const len = (FEAT().period && FEAT().period.length) || 6;
+  const year = S.weekKey.split("-")[1] || "";
+  const byPeriod = {}, out = {};
+  archivedWeeks().forEach(function(wk){
+    const n = parseInt(wk.slice(1), 10) || 0;
+    const idx = Math.floor((n - 1) / len);
+    if (n + (len - 1 - ((n - 1) % len)) > S.weekNum) return;   // period still running
+    byPeriod[idx] = true;
+  });
+  Object.keys(byPeriod).forEach(function(idx){
+    const first = Number(idx) * len + 1;
+    const totals = {};
+    let best = 0;
+    ROSTER().forEach(function(m){
+      let sum = 0;
+      for (let w = first; w < first + len; w++) sum += pointsInWeek(m.id, "w" + w + "-" + year);
+      totals[m.id] = sum; if (sum > best) best = sum;
+    });
+    if (!best) return;
+    Object.keys(totals).forEach(function(id){ if (totals[id] === best) out[id] = (out[id] || 0) + 1; });
+  });
+  return out;
+}
+
+function seasonView(me) {
+  const weeks = archivedWeeks();
+  const won = weeksWonTally();
+  const rows = ROSTER().map(function(m){
+    let pts = 0, w = 0, l = 0, p = 0;
+    weeks.forEach(function(wk){ pts += pointsInWeek(m.id, wk); });
+    weeks.forEach(function(wk){
+      const picks = ((LGS().picks||{})[wk]||{})[m.id] || {}, res = (LGS().res||{})[wk] || {};
+      Object.keys(picks).forEach(function(gid){
+        const r = res[gid]; if (!r) return;
+        if (r.ats === "PUSH") p++; else if (r.ats === picks[gid]) w++; else l++;
+      });
+    });
+    return { m:m, pts:pts, w:w, l:l, p:p, won:(won[m.id] || 0), played:(w + l + p) };
+  }).filter(function(r){ return r.played > 0; })
+    .sort(function(a,b){ return b.pts - a.pts || b.w - a.w || a.m.short.localeCompare(b.m.short); });
+
+  if (!rows.length) {
+    return '<div class="card" style="padding:18px"><div style="font-size:14px;color:var(--muted);line-height:1.5">Nothing scored yet. The season table fills in as weeks finish.</div></div>';
+  }
+  const best = rows[0].pts;
+
+  return '<div class="svhead"><b>'+weeks.length+'</b> week'+(weeks.length===1?"":"s")+' in the book'+
+      '<span>SEASON TO DATE</span></div>'+
+    rows.map(function(r, i){
+      const lead = r.pts === best;
+      const pct = (r.w + r.l) ? Math.round(r.w / (r.w + r.l) * 100) : 0;
+      return '<div class="prow'+(lead?" leader":"")+'">'+
+        '<span class="pface"></span><span class="psheen"></span><span class="phair"></span>'+
+        (lead?'<svg class="pring gold"><rect></rect></svg><span class="firsttab">1ST</span>':'')+
+        '<span class="prin">'+
+          '<span style="width:16px;font-size:13px;color:var(--muted);font-weight:800">'+(i+1)+'</span>'+
+          crest(r.m,30)+
+          '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:15px">'+esc(r.m.short)+'</div>'+
+          '<div style="font-size:11.5px;color:var(--muted)">'+r.w+'-'+r.l+(r.p?"-"+r.p:"")+' · '+pct+'%'+
+          (r.won ? ' · <b style="color:var(--gold)">'+r.won+' week'+(r.won===1?"":"s")+' won</b>' : "")+
+          '</div></div>'+
+          '<span class="seasonpts">'+r.pts+'</span>'+
+        '</span></div>';
+    }).join("")+
+    '<div class="note">Points across every finished week. Mortal locks count double.</div>';
+}
+
+function periodInfo(n) {
+  const len = (FEAT().period && FEAT().period.length) || 6;
+  const idx = Math.floor((n - 1) / len);
+  const first = idx * len + 1, last = Math.min(first + len - 1, 18);
+  const weeks = [];
+  for (let w = first; w <= last; w++) weeks.push(w);
+  return { idx:idx, num:idx + 1, first:first, last:last, weeks:weeks, len:len };
+}
+function periodTable(n) {
+  const p = periodInfo(n), year = S.weekKey.split("-")[1] || "";
+  return ROSTER().map(function(m){
+    let total = 0; const byWeek = [];
+    p.weeks.forEach(function(w){
+      const pts = (w <= S.weekNum) ? pointsInWeek(m.id, "w" + w + "-" + year) : null;
+      byWeek.push(pts);
+      if (pts) total += pts;
+    });
+    return { m:m, total:total, byWeek:byWeek };
+  }).filter(function(r){ return r.byWeek.some(function(x){ return x !== null; }); })
+    .sort(function(a,b){ return b.total - a.total || a.m.short.localeCompare(b.m.short); });
+}
+
+function periodView(me) {
+  const cfg = FEAT().period;
+  const p = periodInfo(S.weekNum);
+  const rows = periodTable(S.weekNum);
+  const pot = cfg.buyIn * ROSTER().length;
+  const best = rows.length ? rows[0].total : 0;
+  const done = S.weekNum >= p.last && S.games.every(graded);
+
+  const head = '<div class="gcell ghead corner">PLAYER</div>' +
+    p.weeks.map(function(w){
+      return '<div class="gcell ghead'+(w===S.weekNum?" now":"")+'"><span class="pw">W'+w+'</span></div>';
+    }).join("") + '<div class="gcell ghead"><span class="pw">TOT</span></div>';
+
+  const body = rows.map(function(r, i){
+    const lead = r.total === best && best > 0;
+    return '<div class="gcell gname'+(r.m.id===me.id?" me":"")+(lead?" lead":"")+'">'+crest(r.m,24)+
+      '<span class="gninner"><span class="gnname">'+esc(r.m.short)+'</span></span></div>'+
+      r.byWeek.map(function(x){
+        return '<div class="gcell wk'+(x===null?" empty":"")+'">'+(x===null?"·":x)+'</div>';
+      }).join("")+
+      '<div class="gcell tot">'+r.total+'</div>';
+  }).join("");
+
+  return '<div class="percard">'+
+      '<div class="per-tag">PERIOD '+p.num+' · WEEKS '+p.first+' TO '+p.last+'</div>'+
+      '<div class="per-pot">$'+pot+'<span>on the line, $'+cfg.buyIn+' a man</span></div>'+
+      '<div class="per-line">'+(done
+        ? (rows.length ? esc(rows[0].m.short)+" takes it with "+best : "Nobody scored")
+        : (rows.length ? esc(rows[0].m.short)+" leads with "+best+", "+(p.last - S.weekNum)+" week"+((p.last-S.weekNum)===1?"":"s")+" left"
+                       : "No results in this period yet"))+'</div></div>'+
+    '<div class="gridwrap"><div class="grid" style="grid-template-columns:132px repeat('+
+      (p.weeks.length + 1)+',minmax(34px,1fr))">'+head+body+'</div></div>'+
+    '<div class="note">Points carry across the whole period. Mortal locks count double, same as any week.</div>';
+}
 const tbGame  = () => S.games.length ? S.games[S.games.length-1] : null;
 function tbActual() {
   const g = tbGame();
@@ -507,10 +705,15 @@ function blast() {
 function say(t) { S.toast = t; render(); setTimeout(function(){ S.toast=""; render(); }, 2000); }
 
 /* ============ VIEWS ============ */
+const PALETTE = ["#1C7C8C","#782F40","#0B2265","#177E63","#B58500","#8C3A2B","#4F2683","#0F3B44",
+                 "#C4523F","#2C6FA8","#5A6E2F","#101820"];
+const colorOf = id => ((LGS().colors || {})[id]) || null;
+
 function avatarSvg(m, size) {
+  const custom = colorOf(m.id);
   const t = m.fan || null;
-  const main = t ? col(t) : (m.tint || "#0F3B44");
-  const trim = t ? trimOf(t) : "#CBB27A";
+  const main = custom || (t ? col(t) : (m.tint || "#0F3B44"));
+  const trim = custom ? shade(custom, 58) : (t ? trimOf(t) : "#CBB27A");
   let h = 0; for (const ch of String(m.id)) h = (h*31 + ch.charCodeAt(0)) >>> 0;
   const skins = ["#E8B98E","#C98C5E","#8C5A38","#F0D0AE","#6B4429"];
   const skin = skins[h % skins.length];
@@ -536,55 +739,114 @@ function avatarSvg(m, size) {
   '</svg>';
 }
 
-function currentLeaders() {
-  const anyGraded = S.games.some(graded);
-  if (!anyGraded) return {};
-  const rows = inPool().map(function(m){ return { id:m.id, pts:record(m.id).pts }; });
-  if (!rows.length) return {};
-  let best = 0;
-  rows.forEach(function(r){ if (r.pts > best) best = r.pts; });
-  if (!best) return {};
-  const out = {};
-  rows.forEach(function(r){ if (r.pts === best) out[r.id] = best; });
-  return out;
+// you get one throw for every week you win, spent when you use it
+function lastWonWeek() {
+  const weeks = archivedWeeks();
+  for (let i = weeks.length - 1; i >= 0; i--) {
+    if (weekWinners(weeks[i]).indexOf(S.me) > -1) return weeks[i];
+  }
+  return null;
+}
+function ammoLeft() {
+  const used = LGS().ammo || {};
+  return archivedWeeks().filter(function(wk){
+    return weekWinners(wk).indexOf(S.me) > -1 && !((used[wk] || {})[S.me]);
+  });
+}
+function incoming() {
+  const all = (LGS().throws || {})[S.me] || {};
+  return Object.keys(all).map(function(k){ return Object.assign({ key:k }, all[k]); })
+    .sort(function(a,b){ return (a.at||0) - (b.at||0); });
 }
 
-function lastWeekWinners() {
-  const n = S.weekNum - 1;
-  if (n < 1) return {};
-  const wk = "w" + n + "-" + (S.weekKey.split("-")[1] || "");
-  const picks = (LGS().picks || {})[wk], res = (LGS().res || {})[wk];
-  if (!picks || !res) return {};
-  const gameOf = {};
-  Object.keys(res).forEach(function(gid){ gameOf[gid] = res[gid]; });
-  const mlocks = (LGS().mlock || {})[wk] || {};
-  let best = 0; const tally = {};
-  Object.keys(picks).forEach(function(who){
-    let pts = 0;
-    Object.keys(picks[who]).forEach(function(gid){
-      const r = gameOf[gid]; if (!r || r.ats === "PUSH") return;
-      if (r.ats === picks[who][gid]) pts += (mlocks[who] === gid ? 2 : 1);
-    });
-    tally[who] = pts;
-    if (pts > best) best = pts;
+window.openThrow = function(){ S.throwing = true; render(); };
+window.closeThrow = function(){ S.throwing = false; render(); };
+window.throwPoop = async function(target){
+  const ammo = ammoLeft();
+  if (!ammo.length || target === S.me) return;
+  const wk = ammo[0];
+  const key = wk + "-" + S.me;
+  await put(P("throws." + target + "." + key), { from:S.me, wk:wk, at:Date.now() });
+  await put(P("ammo." + wk + "." + S.me), true);
+  S.throwing = false;
+  say("Launched at " + (M(target) ? M(target).short : target));
+  render();
+};
+window.clearSplat = async function(){
+  const hits = S.splat || incoming();
+  S.splat = null; S.splatSeen = true;
+  render();
+  for (const h of hits) { await put(P("throws." + S.me + "." + h.key), null); }
+};
+
+function splatOverlay() {
+  const hits = S.splat || [];
+  if (!hits.length) return "";
+  const who = hits.map(function(h){ const m = M(h.from); return m ? esc(m.short) : h.from; });
+  const names = who.length === 1 ? who[0] : who.slice(0,-1).join(", ") + " and " + who[who.length-1];
+  const blobs = hits.slice(0, 6).map(function(h, i){
+    const left = 12 + (i * 71) % 70, top = 14 + (i * 37) % 58, rot = (i * 47) % 60 - 30;
+    return '<span class="splatblob" style="left:'+left+'%;top:'+top+'%;--rot:'+rot+'deg;animation-delay:'+(i*90)+'ms">💩</span>';
+  }).join("");
+  return '<div class="splat" onclick="clearSplat()">'+blobs+
+    '<div class="splatcard">'+
+      '<div class="sp-tag">INCOMING</div>'+
+      '<div class="sp-line">'+names+' hit you with '+(hits.length>1?hits.length+" of these":"one of these")+'</div>'+
+      '<div class="sp-sub">Win a week and you can throw one back.</div>'+
+      '<button class="btn" style="margin-top:14px" onclick="clearSplat()">Wipe it off</button>'+
+    '</div></div>';
+}
+
+function throwSheet(me) {
+  const ammo = ammoLeft();
+  const targets = ROSTER().filter(function(m){ return m.id !== me.id; });
+  return '<div class="veil" onclick="closeThrow()"><div class="sheet" onclick="event.stopPropagation()">'+
+    '<div style="width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px"></div>'+
+    '<div style="font-size:20px;font-weight:800">Pick a target</div>'+
+    '<div style="font-size:12.5px;color:var(--muted);margin-top:4px">'+
+      'You have '+ammo.length+' throw'+(ammo.length===1?"":"s")+' banked. One per week won.</div>'+
+    '<div style="margin-top:14px">'+targets.map(function(m){
+      return '<button class="row" style="width:100%;background:none;border:none;text-align:left" '+
+        'onclick="throwPoop(\''+m.id+'\')">'+crest(m,30)+
+        '<div style="flex:1;font-weight:700">'+esc(m.short)+'</div><span style="font-size:20px">💩</span></button>';
+    }).join("")+'</div>'+
+    '<button class="btn" style="margin-top:14px;background:transparent;border:1px solid var(--line);color:var(--muted)" onclick="closeThrow()">Not yet</button>'+
+  '</div></div>';
+}
+
+function crownHolders() {
+  const weeks = archivedWeeks();
+  if (!weeks.length) return {};
+  const year = S.weekKey.split("-")[1] || "";
+  const thisWeek = "w" + S.weekNum + "-" + year;
+  const liveDone = S.games.length && S.games.every(graded);
+  const usable = weeks.filter(function(wk){
+    if (wk === thisWeek) return !!liveDone;              // this week only counts once it is finished
+    return (parseInt(wk.slice(1), 10) || 0) < S.weekNum;
   });
-  if (!best) return {};
-  const winners = {};
-  Object.keys(tally).forEach(function(who){ if (tally[who] === best) winners[who] = best; });
-  return winners;
+  if (!usable.length) return {};
+  const last = usable[usable.length - 1];
+  const out = {};
+  weekWinners(last).forEach(function(id){ out[id] = true; });
+  return out;
 }
 
 function crest(m, size) {
   size = size || 34;
   const ring = m.fan ? col(m.fan) : (m.tint || "#0F3B44");
-  if (S.champs === null) S.champs = currentLeaders();
+  if (S.champs === null) S.champs = crownHolders();
+  const star = (fullOf(m.id) && size >= 22)
+    ? '<svg class="paidstar" viewBox="0 0 20 20" style="width:'+Math.max(size*0.34,9)+'px">'+
+      '<path d="M10 1.5 12.4 7 18.3 7.6 13.9 11.5 15.2 17.3 10 14.3 4.8 17.3 6.1 11.5 1.7 7.6 7.6 7 Z" '+
+      'fill="#F0B93F" stroke="#8A5F14" stroke-width="1.2" stroke-linejoin="round"/></svg>'
+    : "";
   const crown = (S.champs && S.champs[m.id] && size >= 22)
     ? '<svg class="crown" viewBox="0 0 24 18" style="width:'+Math.max(size*0.52,13)+'px">'+
       '<path d="M2 15 L1 4 L7 8 L12 1 L17 8 L23 4 L22 15 Z" fill="#F0B93F" stroke="#8A5F14" '+
       'stroke-width="1.4" stroke-linejoin="round"/>'+
       '<circle cx="12" cy="4" r="1.6" fill="#FFF3D8"/></svg>'
     : "";
-  return '<span class="crestwrap" style="width:'+size+'px;height:'+size+'px">'+crown+
+  return '<span class="crestwrap" style="width:'+size+'px;height:'+size+'px">'+crown+star+
     '<span class="crest" style="width:'+size+'px;height:'+size+'px;border-radius:'+(size/2)+
     'px;overflow:hidden;box-shadow:inset 0 0 0 2px '+ring+'">'+avatarSvg(m, size)+
     '<span class="badge" style="background:'+ring+'">'+
@@ -598,26 +860,35 @@ function applyTheme() {
   Object.keys(t).forEach(function(k){ r.style.setProperty("--"+k, t[k]); });
 }
 function leagueGate() {
-  return '<main style="padding:56px 20px">'+
-    '<div style="font-size:10px;letter-spacing:3px;font-weight:800;color:var(--muted)">CHOOSE YOUR LEAGUE</div>'+
-    Object.keys(LEAGUES).map(function(k){
-      const L = LEAGUES[k];
-      return '<button onclick="setLeague(\''+k+'\')" style="width:100%;margin-top:14px;padding:22px 18px;'+
-        'border:1px solid '+L.theme.line+';border-radius:14px;background:'+L.theme.panel+';text-align:left;'+
-        'display:flex;align-items:center;gap:14px">'+
-        '<span style="width:44px;height:44px;border-radius:22px;flex-shrink:0;background:'+L.theme.crest+';'+
-        'color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;'+
-        'font-style:italic">'+esc(L.name.slice(0,4).toUpperCase())+'</span>'+
-        '<span><span style="display:block;font-size:17px;font-weight:800;color:'+L.theme.ink+'">'+esc(L.full)+'</span>'+
-        '<span style="display:block;font-size:11.5px;color:'+L.theme.muted+';margin-top:3px">'+
-        L.members.length+' players'+(L.est?" · "+L.est:"")+'</span></span></button>';
-    }).join("")+
-    '<div class="note">One link, both pools. Your pick stays on this device and you can switch any time.</div></main>';
+  const cards = Object.keys(LEAGUES).map(function(k){
+    const L = LEAGUES[k];
+    const badge = L.features.badge === "shield"
+      ? shield(52)
+      : '<div class="lg-word">'+wordmark(L.name, 22, "gold")+'</div>';
+    return '<button class="lgcard" onclick="setLeague(\''+k+'\')" style="'+
+      '--lgInk:'+L.theme.ink+';--lgPanel:'+L.theme.panel+';--lgAccent:'+L.theme.blue+
+      ';--lgGold:'+L.theme.gold+';--lgLine:'+L.theme.line+';--lgSand:'+L.theme.sand+'">'+
+      '<span class="lg-stripe"></span>'+
+      '<span class="lg-badge">'+badge+'</span>'+
+      '<span class="lg-body">'+
+        '<span class="lg-name">'+esc(L.full)+'</span>'+
+        '<span class="lg-meta">'+L.members.length+' PLAYERS'+(L.est?' · '+esc(L.est.toUpperCase()):'')+'</span>'+
+      '</span>'+
+      '<span class="lg-go">›</span></button>';
+  }).join("");
+
+  return '<main class="gatewrap">'+
+    '<div class="gatehero">'+
+      '<div class="gh-rule"></div>'+
+      '<div class="gh-kicker">CHOOSE YOUR LEAGUE</div>'+
+      '<div class="gh-rule"></div>'+
+    '</div>'+
+    '<div class="lgstack">'+cards+'</div></main>';
 }
 window.setLeague = function(k){
   S.lg = k; localStorage.setItem("lg", k);
   S.me = localStorage.getItem("me:"+k) || null;
-  S.tab = "picks"; S.view = "standings"; applyTheme(); render();
+  S.tab = "picks"; S.view = "season"; S.splat = null; S.splatSeen = false; S.throwing = false; applyTheme(); render();
 };
 window.backToLeagues = function(){
   if (localStorage.getItem("lgLock")) return;
@@ -645,7 +916,13 @@ function sizeRings(animateId) {
         rc.style.transition="stroke-dashoffset 420ms cubic-bezier(.3,.7,.3,1)";
         rc.style.strokeDashoffset=0;
       });
-    } else { rc.style.strokeDasharray="none"; rc.style.strokeDashoffset=0; }
+    } else if (sg.classList.contains("leader")) {
+      const dash = Math.max(len * 0.22, 60);
+      rc.style.transition = "none";
+      rc.style.strokeDasharray = dash + " " + (len - dash);
+      rc.style.setProperty("--ringLen", len);
+      rc.style.animation = "ringchase 3.4s linear infinite";
+    } else { rc.style.strokeDasharray="none"; rc.style.strokeDashoffset=0; rc.style.animation="none"; }
   });
 }
 function celebrate(gid, team, prefix) {
@@ -678,10 +955,14 @@ function render() {
    '<header><div>'+
      (canSwitch()
        ? '<button onclick="switchLeague()" style="background:none;border:none;padding:0;text-align:left">'+
-         '<div class="mark" style="font-size:26px;text-shadow:1.4px 1.4px 0 var(--gold)">'+esc(LG().name)+'</div>'+
+         (FEAT().badge==="shield"
+           ? '<div class="mark" style="font-size:26px;text-shadow:1.4px 1.4px 0 var(--gold)">'+esc(LG().name)+'</div>'
+           : wordmark(LG().name, 26, "gold"))+
          '<div class="sub">'+(LG().est?esc(LG().est)+" · ":"")+esc(S.weekLabel)+' · tap to switch league</div></button>'
        : '<div style="display:flex;align-items:center;gap:9px">'+(FEAT().badge==="shield"?shield(28):"")+
-         '<div><div class="mark" style="font-size:26px;text-shadow:1.4px 1.4px 0 var(--gold)">'+esc(LG().name)+'</div>'+
+         '<div>'+(FEAT().badge==="shield"
+           ? '<div class="mark" style="font-size:26px;text-shadow:1.4px 1.4px 0 var(--gold)">'+esc(LG().name)+'</div>'
+           : wordmark(LG().name, 26, "gold"))+
          '<div class="sub">'+(LG().est?esc(LG().est)+" · ":"")+esc(S.weekLabel)+'</div></div></div>')+
    '</div>'+
    '<button style="background:none;border:none;display:flex;align-items:center;gap:8px" onclick="openSheet()">'+
@@ -692,7 +973,13 @@ function render() {
     '<div style="margin:10px 12px 0"><div class="warn"><b>Nothing is saving.</b><br>'+esc(S.why)+
     '<br>Connect the database in Vercel, then redeploy.</div></div>';
   const body = warn + (S.tab==="picks" ? picksView(me) : S.tab==="surv" ? survView(me) : boardView(me));
-  S.paint = head + body + (S.toast ? '<div class="toast">'+esc(S.toast)+'</div>' : "") + (S.sheet ? sheet(me) : "");
+  if (!S.splat && !S.splatSeen && S.me) { const hits = incoming(); if (hits.length) S.splat = hits; }
+  const ammo = S.me ? ammoLeft() : [];
+  const throwBar = ammo.length
+    ? '<button class="throwbar" onclick="openThrow()"><span>💩</span>You won a week. Throw it at somebody.'+
+      (ammo.length>1?' <b>'+ammo.length+' banked</b>':'')+'</button>'
+    : "";
+  S.paint = head + throwBar + body + (S.splat ? splatOverlay() : "") + (S.throwing ? throwSheet(me) : "") + (S.toast ? '<div class="toast">'+esc(S.toast)+'</div>' : "") + (S.sheet ? sheet(me) : "");
   $(S.paint);
   if (S.tab === "picks" || S.tab === "surv") sizeRings(S.justPicked);
   S.justPicked = null;
@@ -702,7 +989,7 @@ function gate() {
   $('<main style="padding:44px 18px">'+
     (FEAT().badge === "shield"
       ? '<div style="display:flex;justify-content:center;margin-bottom:6px">'+shield(78)+'</div>'
-      : '<div class="mark" style="font-size:46px;text-shadow:2.6px 2.6px 0 var(--gold)">'+esc(LG().name)+'</div>')+
+      : '<div style="display:flex;justify-content:center;margin-bottom:2px">'+wordmark(LG().name, 46, "gold")+'</div>')+
     '<div style="font-size:9.5px;letter-spacing:2.6px;font-weight:800;color:var(--muted);margin-top:10px">SELECT YOUR NAME</div>'+
     (S.ok ? "" : '<div class="warn"><b>Storage is not connected.</b><br>'+esc(S.why)+'</div>')+
     '<div class="card" style="margin-top:18px">'+
@@ -868,16 +1155,20 @@ function survView(me) {
 }
 
 function boardView(me) {
-  const base = [["standings","Survivor"],["reveal","Pickem"],["stats","Stats"]];
+  const base = [["season","Season"],["standings","Survivor"],["reveal","Week"]];
+  if (FEAT().period) base.push(["period", "$100"]);
+  if (FEAT().stats) base.push(["stats","Stats"]);
   if (FEAT().trophy) base.push(["history","Trophy"]);
   if (FEAT().ledger) base.push(["ledger","Ledger"]);
   const pills = base
     .map(function(x){ return '<button class="pill '+(S.view===x[0]?"on":"")+'" onclick="setView(\''+x[0]+'\')">'+x[1]+'</button>'; }).join("");
   let body = "";
   if (!body) body = "";
+  if (S.view === "season") body = seasonView(me);
   if (S.view === "standings") body = standings(me);
   if (S.view === "reveal") body = reveal(me);
-  if (S.view === "stats") body = statsView(me);
+  if (S.view === "period" && FEAT().period) body = periodView(me);
+  if (S.view === "stats" && FEAT().stats) body = statsView(me);
   if (S.view === "history" && FEAT().trophy) body = trophy();
   if (S.view === "ledger" && FEAT().ledger) body = ledger(me);
   return '<main><div style="display:flex;gap:6px;margin-bottom:12px">'+pills+'</div>'+body+'</main>';
@@ -928,7 +1219,7 @@ function standings(me) {
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+crest(M("brodsky"),26)+
       '<span style="font-size:12.5px;font-weight:700;color:var(--muted)">From the Stats Chair</span></div>'+
       '<div class="serif" style="font-size:15.5px;line-height:1.5">'+esc(LORE[(S.weekNum-1)%LORE.length])+'</div></div>' : "")+
-    (ADMINS_OF().indexOf(me.id) > -1 ? leagueLinkPanel() + invitePanel() + adminPins() : "")+
+    (ADMINS_OF().indexOf(me.id) > -1 ? invitePanel() + adminPins() : "")+
     '<div class="note">Survivor only. Pick em standings live on the Reveal tab.</div>';
 }
 
@@ -945,7 +1236,19 @@ function adminPins() {
     '<div style="font-size:11.5px;color:var(--muted);line-height:1.45">Clearing lets that person set a new PIN next time they sign in.</div></div>';
 }
 
+function weekGames(wk) {
+  // rebuild a finished week from what was archived
+  const res = (LGS().res || {})[wk] || {};
+  return Object.keys(res).map(function(gid){
+    const r = res[gid];
+    return { id:gid, home:r.home, away:r.away, fav:r.fav, line:r.line,
+             done:true, state:"post", kick:"1970-01-01T00:00:00Z", hs:null, as:null, archived:r };
+  });
+}
+
 function reveal(me) {
+  const back = S.back || 0;
+  if (back > 0) return revealPast(me, back);
   const open = S.games.filter(kicked);
   if (!open.length) return '<div class="card" style="padding:18px"><div style="font-size:14px;color:var(--muted);line-height:1.5">Sealed until kickoff. Every card opens here the second its game starts, one game at a time.</div></div>';
 
@@ -1061,17 +1364,92 @@ function reveal(me) {
   const grid = '<div class="gridwrap"><div class="grid" style="grid-template-columns:158px repeat('+
     open.length+',minmax(30px,34px))">'+head+body+'</div></div>';
 
-  return eggs +
+  const nav = weekNav();
+  return nav + eggs +
     '<div class="cmpbar"><div class="cmplabel">COMPARE WITH</div><div class="cmprow">'+chips+'</div></div>'+
     grid + scenarios +
     '<div class="note">Bold number is points, faint number is the most they can still reach. Outlined cells are where you differ from the player you are comparing with. Gold outline means nobody else took that team.</div>';
 }
 
+function weekNav() {
+  const year = S.weekKey.split("-")[1] || "";
+  const back = S.back || 0;
+  const shown = S.weekNum - back;
+  const older = (LGS().res || {})["w" + (shown - 1) + "-" + year];
+  return '<div class="wknav">'+
+    '<button '+(older?'onclick="stepWeek(1)"':'disabled')+'>‹</button>'+
+    '<span>WEEK '+shown+(back?'':' · LIVE')+'</span>'+
+    '<button '+(back>0?'onclick="stepWeek(-1)"':'disabled')+'>›</button></div>';
+}
+
+function revealPast(me, back) {
+  const year = S.weekKey.split("-")[1] || "";
+  const wk = "w" + (S.weekNum - back) + "-" + year;
+  const games = weekGames(wk);
+  const picksFor = function(who){ return ((LGS().picks||{})[wk]||{})[who] || {}; };
+  const mlockFor = function(who){ return ((LGS().mlock||{})[wk]||{})[who] || null; };
+  const players = ROSTER().map(function(m){
+    return { m:m, pts:pointsInWeek(m.id, wk), picks:picksFor(m.id) };
+  }).filter(function(x){ return Object.keys(x.picks).length; })
+    .sort(function(a,b){ return b.pts - a.pts || a.m.short.localeCompare(b.m.short); });
+
+  if (!games.length || !players.length) {
+    return weekNav() + '<div class="card" style="padding:18px"><div style="font-size:14px;color:var(--muted)">Nothing archived for that week.</div></div>';
+  }
+  const best = players[0].pts;
+
+  const head = '<div class="gcell ghead corner">PLAYER</div>' + games.map(function(g){
+    return '<div class="gcell ghead">'+
+      '<span class="hteams"><img src="'+logo(g.away)+'" onerror="this.style.display=\'none\'" /><u>at</u>'+
+      '<img src="'+logo(g.home)+'" onerror="this.style.display=\'none\'" /></span>'+
+      '<b>'+(g.archived.ats === "PUSH" ? "PUSH" : g.archived.ats)+'</b></div>';
+  }).join("");
+
+  const body = players.map(function(x, i){
+    const cells = games.map(function(g){
+      const p = x.picks[g.id];
+      if (!p) return '<div class="gcell empty">·</div>';
+      const r = g.archived;
+      const push = r.ats === "PUSH";
+      const right = !push && r.ats === p, wrong = !push && r.ats !== p;
+      const ml = mlockFor(x.m.id) === g.id;
+      return '<div class="gcell pick'+(right?" right":"")+(wrong?" wrong":"")+(push?" push":"")+
+        '" style="'+tint(p)+";--full:"+col(p)+'">'+
+        '<img src="'+logo(p)+'" alt="'+p+'" onerror="this.replaceWith(document.createTextNode(\''+p+'\'))" />'+
+        (ml?'<i class="mlk">LOCK</i>':'')+'</div>';
+    }).join("");
+    return '<div class="gcell gname'+(x.m.id===me.id?" me":"")+(i===0&&best>0?" lead":"")+'">'+
+      crest(x.m,24)+'<span class="gninner"><span class="gnname">'+esc(x.m.short)+'</span>'+
+      '<span class="gnsub"><b>'+x.pts+'</b></span></span></div>'+cells;
+  }).join("");
+
+  return weekNav() +
+    '<div class="gridwrap"><div class="grid" style="grid-template-columns:158px repeat('+
+    games.length+',minmax(30px,34px))">'+head+body+'</div></div>'+
+    '<div class="note">Final board for that week, straight from the archive.</div>';
+}
+
 function trophy() {
+  const periodMode = !!FEAT().period;
+  const tally = periodMode ? periodsWonTally() : weeksWonTally();
+  const ranked = Object.keys(tally).sort(function(a,b){ return tally[b] - tally[a]; });
+  const wonCard = '<div class="card" style="padding:14px;margin-bottom:11px">'+
+    '<div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:10px">'+
+    (periodMode ? "Six week periods won" : "Weeks won this season")+'</div>'+
+    (ranked.length ? ranked.map(function(id){
+      const m = M(id); if (!m) return "";
+      return '<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">'+crest(m,28)+
+        '<span style="flex:1;font-weight:700">'+esc(m.short)+'</span>'+
+        '<b style="font-size:17px">'+tally[id]+'</b></div>';
+    }).join("") : '<div class="note" style="padding:6px 0 0">'+
+      (periodMode ? "No period has finished yet." : "No weeks in the book yet.")+'</div>')+'</div>';
+
   const rings = {}, sackos = {};
   HISTORY.forEach(function(h){ rings[h.champ]=(rings[h.champ]||0)+1; if (h.sacko) sackos[h.sacko]=(sackos[h.sacko]||0)+1; });
   const label = id => M(id) ? M(id).short : id;
-  return '<div class="card" style="padding:14px">'+
+  if (!FEAT().history) return wonCard;
+  return wonCard +
+    '<div class="card" style="padding:14px">'+
     '<div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:10px">Titles since 2011</div>'+
     Object.keys(rings).sort(function(a,b){ return rings[b]-rings[a]; }).map(function(id){
       return '<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">'+crest(M(id),28)+
@@ -1092,9 +1470,9 @@ function ledger(me) {
   const collector = me.books || me.id === "brodsky";
   const sunday = S.games.find(function(g){ return new Date(g.kick).getDay() === 0; });
   const late = sunday ? Date.now() > new Date(sunday.kick).getTime() : false;
-  const rows = inPool().map(function(m){
-    const paid = paidOf(m.id);
-    return { m:m, paid:paid, amt:(late && !paid) ? FEE_OF()*1.1 : FEE_OF() };
+  const rows = ROSTER().map(function(m){
+    const full = fullOf(m.id), paid = paidOf(m.id);
+    return { m:m, paid:paid, full:full, amt:(late && !paid) ? FEE_OF()*1.1 : FEE_OF() };
   }).sort(function(a,b){ return Number(a.paid) - Number(b.paid); });
   const collected = rows.filter(function(r){ return r.paid; }).length * FEE_OF();
   const out = rows.filter(function(r){ return !r.paid; }).reduce(function(s,r){ return s + r.amt; }, 0);
@@ -1106,9 +1484,16 @@ function ledger(me) {
       return '<button class="row" style="width:100%;background:none;border:none;text-align:left" '+(collector?"":"disabled")+' onclick="togglePaid(\''+r.m.id+'\')">'+
       crest(r.m,30)+'<div style="flex:1"><div style="font-weight:700">'+esc(r.m.short)+'</div>'+
       '<div style="font-size:11.5px;color:'+(r.paid?"var(--win)":late?"var(--loss)":"var(--muted)")+'">'+
-      (r.paid?"paid":late?"late, Rule 6 tax applied":"outstanding")+'</div></div>'+
+      (r.full?"paid up for the season":r.paid?"paid":late?"late, Rule 6 tax applied":"outstanding")+'</div></div>'+
       '<span style="font-weight:800;'+(r.paid?"text-decoration:line-through;color:var(--muted)":"")+'">$'+(r.amt%1?r.amt.toFixed(2):r.amt)+'</span></button>';
     }).join("") : '<div class="note" style="padding:18px">Nobody is in yet, so nobody owes anything.</div>')+'</div>'+
+    (collector ? '<div class="card" style="padding:13px 14px;margin-top:11px">'+
+      '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">PAID FOR THE SEASON</div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-top:5px;line-height:1.45">Tap a name to mark them settled every week. They get a gold star and stop showing as owing.</div>'+
+      '<div class="fullrow">'+ROSTER().map(function(m){
+        return '<button class="fullchip'+(fullOf(m.id)?" on":"")+'" onclick="toggleFull(\''+m.id+'\')">'+
+          esc(m.short)+'</button>';
+      }).join("")+'</div></div>' : "")+
     (owe.length ? '<div class="flag" style="margin-top:10px"><b>For the group chat</b><div class="serif" style="font-size:14.5px;margin-top:4px">'+
       esc(S.weekLabel)+', still owed: '+owe.join(", ")+'. Corey is not asking twice.</div></div>' : "")+
     '<div class="note">'+(collector?"Tap a name to mark it paid. Only you and the Commissioner can.":"Only the Debt Collector and the Commissioner can mark these paid.")+
@@ -1119,6 +1504,7 @@ function sheet(me) {
   const mine = picksOf(me.id), made = S.games.filter(function(g){ return mine[g.id]; }).length;
   const r = record(me.id), al = aliveState(me.id);
   const line = FEAT().sass ? sassFor(me, r.w, r.l, made, S.games.length, al) : null;
+  const word = line ? null : WORDS[(S.weekNum - 1 + new Date().getDate()) % WORDS.length];
   const hooked = FEAT().wendell && S.games.some(function(g){ return g.wendell && mine[g.id]; });
   return '<div class="veil" onclick="closeSheet()"><div class="sheet" onclick="event.stopPropagation()">'+
     '<div style="width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px"></div>'+
@@ -1127,10 +1513,23 @@ function sheet(me) {
       '<div style="font-size:13px;font-weight:700;color:'+col(me.fan)+'">'+esc(me.fan)+'</div>'+
       '<div style="font-size:12.5px;color:var(--muted);margin-top:2px">'+esc(me.role)+'</div></div></div>'+
     '<div style="display:flex;gap:8px;margin-top:16px">'+
-      stat("Card", made+"/"+S.games.length)+stat("Survivor", survOf(me.id)||"none")+stat("Rings", me.rings)+'</div>'+
-    '<div class="serif" style="margin-top:14px;padding:13px 15px;border-radius:12px;background:var(--ink);color:#F6F1E4"><i>'+esc(line)+'</i></div>'+
+      stat("Card", made+"/"+S.games.length)+stat("Survivor", survOf(me.id)||"none")+(me.rings!=null?stat("Rings", me.rings):stat("Points", record(me.id).pts))+'</div>'+
+    '<div class="serif" style="margin-top:14px;padding:13px 15px;border-radius:12px;background:var(--ink);color:#F6F1E4">'+
+      (line ? '<i>'+esc(line)+'</i>'
+            : '<div style="font-size:9px;letter-spacing:2px;font-weight:900;opacity:.65;font-family:-apple-system,Helvetica,sans-serif">WORD OF THE DAY</div>'+
+              '<div style="font-size:19px;font-weight:800;margin-top:5px">'+esc(word.w)+'</div>'+
+              '<i style="display:block;font-size:14.5px;margin-top:3px;opacity:.9">'+esc(word.d)+'</i>')+'</div>'+
     '<div style="margin-top:12px;padding:12px 14px;border-radius:12px;font-size:13px;border:1px solid '+(hooked?"var(--gold);background:#FDF0DE":"var(--line)")+'">'+
       (hooked ? "Rule 7 has you. $"+FEE_OF()+" to Corey this week." : "Nothing owed yet. Touch an opener and that changes.")+'</div>'+
+    '<div style="margin-top:16px">'+
+      '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">AVATAR COLOUR</div>'+
+      '<div class="swatches">'+
+        PALETTE.map(function(c){
+          return '<button class="swatch'+(colorOf(me.id)===c?" on":"")+'" style="background:'+c+'" '+
+            'onclick="setColor(\''+c+'\')"></button>';
+        }).join("")+
+        (colorOf(me.id) ? '<button class="swatch reset" onclick="setColor(\'\')">↺</button>' : "")+
+      '</div></div>'+
     (S.renaming
       ? '<div style="margin-top:16px">'+
           '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">DISPLAY NAME</div>'+
@@ -1149,13 +1548,15 @@ function sheet(me) {
 }
 
 /* ============ ACTIONS ============ */
-window.go = function(t){ S.tab = t; S.cmp = ""; render(); };
-window.setView = function(v){ S.view = v; S.cmp = ""; render(); };
+window.go = function(t){ S.tab = t; S.cmp = ""; S.back = 0; render(); };
+window.setView = function(v){ S.view = v; S.cmp = ""; S.back = 0; render(); };
 window.openSheet = function(){ S.sheet = true; render(); };
 window.closeSheet = function(){ S.sheet = false; render(); };
 window.signOut = function(){
   if (S.me) localStorage.removeItem("trust:"+S.lg+":"+S.me);
-  localStorage.removeItem("me:"+S.lg); S.me = null; S.sheet = false; render();
+  localStorage.removeItem("me:"+S.lg);
+  S.me = null; S.sheet = false; S.splat = null; S.splatSeen = false; S.throwing = false;
+  render();
 };
 window.tap = async function(gid, team) {
   if (lockOf(S.me)) return;
@@ -1205,6 +1606,11 @@ window.setLock = async function(gid){
   if (gg && kicked(gg)) return;
   const cur = mlockOf(S.me);
   await put(P("mlock."+S.weekKey+"."+S.me), cur === gid ? null : gid);
+  render();
+};
+window.toggleFull = async function(id){
+  const now = fullOf(id);
+  await put(P("full." + id), now ? null : true);
   render();
 };
 window.togglePaid = async function(id){ await put(P("paid."+S.weekKey+"."+id), paidOf(id) ? null : true); render(); };
@@ -1269,7 +1675,7 @@ window.key = async function(n) {
   a.entry = ""; a.err = "Wrong PIN"; render();
 };
 function signIn(id) {
-  S.me = id; S.auth = null;
+  S.me = id; S.auth = null; S.splat = null; S.splatSeen = false;
   localStorage.setItem("lgLock", S.lg);   // locked to this league from here on
   localStorage.setItem("me:"+S.lg, id);
   localStorage.setItem("trust:" + S.lg + ":" + id, "1");
@@ -1311,23 +1717,6 @@ window.copyInvite = function(code) {
 };
 window.killInvite = async function(code) { await put(P("invites."+code), null); render(); };
 
-function leagueLinkPanel() {
-  const url = location.origin + "/?lg=" + S.lg;
-  return '<div class="card" style="padding:14px;margin-top:14px">'+
-    '<div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px">League link</div>'+
-    '<div style="font-size:12.5px;word-break:break-all;line-height:1.5">'+esc(url)+'</div>'+
-    '<button onclick="copyLeagueLink()" style="width:100%;margin-top:10px;border:1px dashed var(--line);'+
-    'background:none;border-radius:12px;padding:11px;font-size:13.5px;color:var(--muted)">'+
-    (S.copiedLg ? "Copied" : "Copy this league's link")+'</button>'+
-    '<div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:8px">'+
-    'Send this to this pool only. It drops them straight in and they never see the other league.</div></div>';
-}
-window.copyLeagueLink = function(){
-  const url = location.origin + "/?lg=" + S.lg;
-  if (navigator.clipboard) navigator.clipboard.writeText(url);
-  S.copiedLg = true; render();
-  setTimeout(function(){ S.copiedLg = false; render(); }, 2000);
-};
 
 function invitePanel() {
   const inv = LGS().invites || {};
@@ -1400,28 +1789,7 @@ function teamRecords() {
   });
   return out;
 }
-function playerTeams(who) {
-  const picks = LGS().picks || {}, res = LGS().res || {}, out = {};
-  Object.keys(picks).forEach(function(wk){
-    const mine = (picks[wk] || {})[who]; if (!mine) return;
-    Object.keys(mine).forEach(function(gid){
-      const t = mine[gid];
-      if (!out[t]) out[t] = { n:0, w:0, l:0, p:0 };
-      out[t].n++;
-      const r = ((res[wk] || {})[gid]) || null;
-      if (!r) return;
-      if (r.ats === "PUSH") out[t].p++;
-      else if (r.ats === t) out[t].w++;
-      else out[t].l++;
-    });
-  });
-  return out;
-}
 function statsView(me) {
-  const who = S.statsWho || me.id;
-  const person = M(who) || me;
-  const mine = playerTeams(who);
-  const teams = Object.keys(mine).sort(function(a,b){ return mine[b].n - mine[a].n || mine[b].w - mine[a].w; });
   const tr = teamRecords();
   const league = Object.keys(tr).filter(function(t){ return tr[t].w + tr[t].l > 0; })
     .sort(function(a,b){
@@ -1429,21 +1797,7 @@ function statsView(me) {
       return pb - pa || tr[b].w - tr[a].w;
     });
 
-  const picker = ROSTER().map(function(m){
-    return '<button onclick="setStatsWho(\'' + m.id + '\')" style="background:' + (m.id===who?"var(--ink)":"transparent") +
-      ';color:' + (m.id===who?"#fff":"var(--muted)") + ';border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;white-space:nowrap">' +
-      esc(m.short) + '</button>';
-  }).join("");
 
-  const mineRows = teams.length ? teams.map(function(t){
-    const x = mine[t], done = x.w + x.l + x.p;
-    return '<div class="row"><img src="' + logo(t) + '" width="24" height="24" style="object-fit:contain" onerror="this.style.visibility=\'hidden\'" />' +
-      '<div style="flex:1"><div style="font-weight:700;font-size:14px">' + t + '</div>' +
-      '<div style="font-size:11.5px;color:var(--muted)">taken ' + x.n + (x.n===1?" time":" times") + '</div></div>' +
-      '<div style="font-weight:800;font-variant-numeric:tabular-nums">' +
-      (done ? x.w + '<span style="color:var(--muted);font-weight:500">-' + x.l + (x.p?"-"+x.p:"") + '</span>'
-            : '<span style="color:var(--muted);font-size:12px">pending</span>') + '</div></div>';
-  }).join("") : '<div class="note" style="padding:18px">No picks on record yet. This fills in as weeks finish.</div>';
 
   const leagueRows = league.length ? league.map(function(t){
     const x = tr[t], pct = Math.round(x.w/(x.w+x.l)*100);
@@ -1454,13 +1808,14 @@ function statsView(me) {
       '<span style="color:var(--muted);font-weight:500">-' + x.l + (x.p?"-"+x.p:"") + '</span></div></div>';
   }).join("") : '<div class="note" style="padding:18px">Nothing graded yet this season.</div>';
 
-  return '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch">' + picker + '</div>' +
-    '<div style="font-size:12.5px;font-weight:700;color:var(--muted);padding:4px 4px 8px">' + esc(person.short) + ' by team</div>' +
-    '<div class="card">' + mineRows + '</div>' +
-    '<div style="font-size:12.5px;font-weight:700;color:var(--muted);padding:16px 4px 8px">NFL against the spread</div>' +
+  return '<div style="font-size:12.5px;font-weight:700;color:var(--muted);padding:4px 4px 8px">NFL against the spread</div>' +
     '<div class="card">' + leagueRows + '</div>' +
     '<div class="note">Records build week by week as games finish. Nobody has to enter anything.</div>';
 }
+window.setColor = async function(c){
+  await put(P("colors." + S.me), c || null);
+  render();
+};
 window.startRename = function(){ S.renaming = true; render(); };
 window.cancelName = function(){ S.renaming = false; render(); };
 window.saveName = async function(){
@@ -1472,8 +1827,13 @@ window.saveName = async function(){
   say("Name updated");
   render();
 };
+window.stepWeek = function(d){
+  const next = (S.back || 0) + d;
+  S.back = Math.max(0, next);
+  S.cmp = "";
+  render();
+};
 window.setCmp = function(id){ S.cmp = (id && S.cmp === id) ? "" : id; render(); };
-window.setStatsWho = function(id){ S.statsWho = id; render(); };
 
 (async function(){
   const q = new URLSearchParams(location.search);
