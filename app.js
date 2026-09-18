@@ -461,7 +461,7 @@ function weekWinners(wk) {
 }
 function weeksWonTally() {
   const out = {};
-  archivedWeeks().forEach(function(wk){
+  completedWeeks().forEach(function(wk){
     weekWinners(wk).forEach(function(id){ out[id] = (out[id] || 0) + 1; });
   });
   return out;
@@ -473,7 +473,9 @@ function periodsWonTally() {
   archivedWeeks().forEach(function(wk){
     const n = parseInt(wk.slice(1), 10) || 0;
     const idx = Math.floor((n - 1) / len);
-    if (n + (len - 1 - ((n - 1) % len)) > S.weekNum) return;   // period still running
+    const lastWeek = idx * len + len;
+    if (lastWeek > S.weekNum) return;                                   // period still running
+    if (!weekIsOver("w" + lastWeek + "-" + year)) return;                // its final week is not done
     byPeriod[idx] = true;
   });
   Object.keys(byPeriod).forEach(function(idx){
@@ -562,7 +564,7 @@ function periodView(me) {
   const rows = periodTable(S.weekNum);
   const pot = cfg.buyIn * ROSTER().length;
   const best = rows.length ? rows[0].total : 0;
-  const done = S.weekNum >= p.last && S.games.every(graded);
+  const done = S.weekNum > p.last || (S.weekNum === p.last && !!S.games.length && S.games.every(graded));
 
   const head = '<div class="gcell ghead corner">PLAYER</div>' +
     p.weeks.map(function(w){
@@ -728,17 +730,16 @@ function avatarSvg(m, size) {
   '</svg>';
 }
 
-// you get one throw for every week you win, spent when you use it
-function lastWonWeek() {
-  const weeks = archivedWeeks();
-  for (let i = weeks.length - 1; i >= 0; i--) {
-    if (weekWinners(weeks[i]).indexOf(S.me) > -1) return weeks[i];
-  }
-  return null;
+function weekIsOver(wk) {
+  const n = parseInt(wk.slice(1), 10) || 0;
+  if (n < S.weekNum) return true;                       // an earlier week is done
+  if (n > S.weekNum) return false;
+  return !!(S.games.length && S.games.every(graded));   // this week only when every game is final
 }
+function completedWeeks() { return archivedWeeks().filter(weekIsOver); }
 function ammoLeft() {
   const used = LGS().ammo || {};
-  return archivedWeeks().filter(function(wk){
+  return completedWeeks().filter(function(wk){
     return weekWinners(wk).indexOf(S.me) > -1 && !((used[wk] || {})[S.me]);
   });
 }
@@ -804,17 +805,13 @@ function throwSheet(me) {
 }
 
 function crownHolders() {
-  const weeks = archivedWeeks();
+  const weeks = completedWeeks();
   if (!weeks.length) return {};
   const year = S.weekKey.split("-")[1] || "";
   const thisWeek = "w" + S.weekNum + "-" + year;
   const liveDone = S.games.length && S.games.every(graded);
-  const usable = weeks.filter(function(wk){
-    if (wk === thisWeek) return !!liveDone;              // this week only counts once it is finished
-    return (parseInt(wk.slice(1), 10) || 0) < S.weekNum;
-  });
-  if (!usable.length) return {};
-  const last = usable[usable.length - 1];
+  if (!weeks.length) return {};
+  const last = weeks[weeks.length - 1];
   const out = {};
   weekWinners(last).forEach(function(id){ out[id] = true; });
   return out;
@@ -1033,7 +1030,8 @@ function picksView(me) {
           '<img class="plogo" src="'+logo(t)+'" onerror="this.style.visibility=\'hidden\'" />'+
           '<span style="text-align:left"><span class="pabbr" style="display:block">'+t+'</span>'+
           '<span class="ptag" style="display:block">'+tag+'</span></span>'+
-          '<span class="pval">'+(fav?"-"+g.line:"+"+g.line)+(r?(r.ats==="PUSH"?" P":good?" ✓":""):"")+'</span>'+
+          '<span class="pval">'+(g.line==null?"—":(fav?"-"+g.line:"+"+g.line))+
+            (r?(r.ats==="PUSH"?" P":good?" ✓":""):"")+'</span>'+
         '</span></button>';
     }
     const isLock = ml === g.id, canLock = !shut && !!mine[g.id];

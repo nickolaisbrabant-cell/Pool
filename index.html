@@ -112,25 +112,46 @@
                  justify-content:flex-start; font-size:13.5px; gap:7px; border-radius:9px;
                  padding:7px 9px 7px 7px; overflow:hidden; }
   .gninner { display:flex; flex-direction:column; align-items:flex-start; min-width:0; flex:1; gap:1px; }
-  .gnname { font-size:13px; font-weight:800; line-height:1.15; max-width:100%;
+  .gnname { font-size:12.5px; font-weight:800; line-height:1.15; max-width:100%;
             overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .gnsub { display:flex; align-items:baseline; gap:6px; }
-  .gcell.gname.lead { position:relative; overflow:hidden;
-      background:linear-gradient(100deg, rgba(255,246,222,.9), rgba(242,197,102,.4) 45%, rgba(238,138,60,.1));
-      box-shadow:inset 0 0 0 2px var(--gold), 0 0 14px -6px var(--gold); }
+  .gnsub { display:flex; align-items:center; gap:7px; margin-top:2px; }
+  /* first place: a live gold rail that runs around the cell */
+  .gcell.gname.lead { position:relative; overflow:hidden; z-index:3; border-radius:9px;
+      background:
+        linear-gradient(var(--panel), var(--panel)) padding-box,
+        conic-gradient(from var(--spin), #8A5F14, #FFF3D2 12%, #F2C566 24%, #8A5F14 42%,
+                       #C98A25 58%, #FFF6DE 74%, #E0A93C 86%, #8A5F14) border-box;
+      border:2.5px solid transparent;
+      animation:leadspin 4.6s linear infinite;
+      box-shadow:0 0 0 1px rgba(201,138,37,.35), 0 3px 16px -6px rgba(238,138,60,.85); }
+  @property --spin { syntax:"<angle>"; inherits:false; initial-value:0deg; }
+  @keyframes leadspin { to { --spin:360deg; } }
+  .gcell.gname.lead::before { content:""; position:absolute; inset:0; pointer-events:none; z-index:-1;
+      background:linear-gradient(100deg, rgba(255,246,222,.95), rgba(242,197,102,.42) 46%, rgba(238,138,60,.12)); }
   .gcell.gname.lead::after { content:""; position:absolute; inset:0; pointer-events:none;
-      background:linear-gradient(115deg, transparent 40%, rgba(255,255,255,.8) 50%, transparent 60%);
-      transform:translateX(-120%); animation:leadersweep 4.2s ease-in-out infinite; }
-  .gcell.gname u { text-decoration:none; font-size:10px; color:var(--muted); font-weight:700;
-                   letter-spacing:.3px; font-variant-numeric:tabular-nums; }
+      background:linear-gradient(112deg, transparent 38%, rgba(255,255,255,.9) 47%,
+                 rgba(255,255,255,.25) 53%, transparent 62%);
+      transform:translateX(-130%); animation:leadersweep 3.8s ease-in-out infinite; }
+
+  /* browsers without @property still get a gold rail, just not a spinning one */
+  @supports not (background: conic-gradient(from 0deg, red, blue)) {
+    .gcell.gname.lead { border-color:var(--gold); background:var(--panel); animation:none; }
+  }
+  .gcell.gname u { text-decoration:none; font-size:10.5px; color:var(--muted); font-weight:800;
+                   letter-spacing:.2px; font-variant-numeric:tabular-nums; }
   .gcell.muted { opacity:.22; }
   .gcell.gname.muted { opacity:.35; }
   .gcell.corner { z-index:4; }
   .gcell.ghead span { color:var(--muted); font-weight:700; font-size:8.5px; display:block; }
   .gcell.ghead b { display:block; font-size:9px; color:var(--win); letter-spacing:.6px; font-weight:900; }
   .gcell.ghead b.live { color:var(--gold); }
-  .gcell.gname b { font-size:20px; line-height:1; color:var(--ink); font-weight:900;
-                   font-variant-numeric:tabular-nums; }
+  .gcell.gname b { display:inline-flex; align-items:center; justify-content:center; min-width:26px;
+                   height:24px; padding:0 6px; border-radius:7px; background:var(--ink); color:#FFF;
+                   font-size:16px; line-height:1; font-weight:900; font-variant-numeric:tabular-nums; }
+  .gcell.gname.lead b { background:linear-gradient(180deg,#FFF3D2,#E0A93C 45%,#A9761C);
+                        color:#2A1B02; box-shadow:0 1px 3px rgba(0,0,0,.3),
+                        inset 0 1px 0 rgba(255,255,255,.75); position:relative; }
+  .gcell.gname.lead .gnname { text-shadow:0 1px 0 rgba(255,255,255,.6); }
   .gcell.gname.me { background:rgba(0,0,0,.04); }
   .gcell.gname.cmp { box-shadow:inset 3px 0 0 var(--gold); }
   .gcell.pick.differs { box-shadow:inset 0 0 0 2px var(--edgeStrong); z-index:1; }
@@ -180,7 +201,6 @@
   .cmpchip b { color:var(--gold); font-size:11px; }
   .cmpchip i { font-style:normal; font-size:11px; opacity:.7; }
 
-                            .gcell.gname b { margin-left:auto; font-size:9.5px; letter-spacing:.6px; color:var(--win); }
   .gcell.gname b.live { color:var(--gold); }
   .gcell.pick { color:var(--ink); background:var(--soft); position:relative; padding:5px 2px 8px;
                 overflow:hidden; box-shadow:inset 0 0 0 1px var(--edge); }
@@ -399,6 +419,7 @@
   @media (prefers-reduced-motion:reduce){ .glint::after,.stamp{animation-duration:.2s} }
   @media (prefers-reduced-motion: reduce) {
     .prow.leader::after, .gcell.gname.lead::after { animation:none; opacity:0; }
+    .gcell.gname.lead { animation:none; }
     .pring.gold rect { animation:none !important; stroke-dasharray:none !important; }
   }
 </style>
