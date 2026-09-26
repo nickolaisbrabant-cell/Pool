@@ -7,7 +7,7 @@ const LEAGUES = {
     theme:{ page:"#E7EFEC", sand:"#EFE4CE", panel:"#FDFCF7", ink:"#0F3B44", blue:"#1C7C8C",
             gold:"#EE8A3C", muted:"#65807F", line:"#D6DFD9", win:"#177E63", loss:"#C4523F",
             crest:"#0F3B44" },
-    features:{ trophy:true, history:true, stats:true, ledger:true, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word", tone:"gold" },
+    features:{ trophy:true, history:true, stats:true, ledger:true, market:{ max:200, min:5 }, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word", tone:"gold" },
     copy:{ empty:"Nobody has picked yet. Drop the link in the GroupMe and watch who moves first.",
            missing:"Is this man alive?",
            missingSub:" not touched the card.",
@@ -218,7 +218,7 @@ const CHANDNI_IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgG
 
 /* ============ STATE ============ */
 const S = { lg:localStorage.getItem("lg")||null, me:null, tab:"picks", view:"season", state:{},
-            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, raw:[], booking:false, bookGame:null, bookSide:null, taking:null, champs:null, splat:null, splatSeen:false, throwing:false, back:0, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], justPicked:null, paint:"", cmp:"", join:null, lastInvite:"", copied:"",
+            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, raw:[], booking:false, bookGame:null, bookSide:null, taking:null, armed:false, champs:null, splat:null, splatSeen:false, throwing:false, back:0, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], justPicked:null, paint:"", cmp:"", join:null, lastInvite:"", copied:"",
             toast:"", sheet:false };
 const $ = h => { document.getElementById("app").innerHTML = h; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -570,11 +570,13 @@ window.pullBid = async function(id){
   say("Pulled");
   render();
 };
-window.confirmTake = function(id){ S.taking = id; render(); };
-window.cancelTake = function(){ S.taking = null; render(); };
+window.confirmTake = function(id){ S.taking = id; S.armed = false; render(); };
+window.cancelTake = function(){ S.taking = null; S.armed = false; render(); };
+window.armTake = function(){ S.armed = true; render(); };
 window.takeBid = async function(id){
+  if (!S.armed) return;                                   // first tap only arms it
   const b = betOn(id);
-  if (!b || b.by === S.me) { S.taking = null; return; }
+  if (!b || b.by === S.me) { S.taking = null; S.armed = false; return; }
   const g = S.games.find(function(x){ return x.id === b.gid; });
   if (!g || kicked(g)) { S.taking = null; render(); return say("That game already kicked"); }
   await loadState();
@@ -587,7 +589,7 @@ window.takeBid = async function(id){
   await loadState();
   const after = betOn(id);
   if (!after || after.taker !== S.me) { S.taking = null; render(); return say("Just taken by someone else"); }
-  S.taking = null;
+  S.taking = null; S.armed = false;
   say("Locked at " + (g.line == null ? "no line" : (fav ? "-" : "+") + g.line));
   render();
 };
@@ -754,22 +756,27 @@ function bookView(me) {
   const board = open.length ? open.map(function(b){
     const g = S.games.find(function(x){ return x.id === b.gid; });
     const m = M(b.by); if (!g || !m) return "";
-    const fav = g.fav === b.team;
+    const theirFav = g.fav === b.team;
     const other = b.team === g.home ? g.away : g.home;
-    const priced = g.line == null ? "no line" : (fav ? "-" : "+") + g.line;
+    const theirPrice = g.line == null ? "no line" : (theirFav ? "-" : "+") + g.line;
+    const yourPrice  = g.line == null ? "no line" : (theirFav ? "+" : "-") + g.line;
     const isMine = b.by === me.id;
     return '<div class="bkcard">'+
-      '<div class="bk-top">'+crest(m,24)+'<span class="bk-by">'+esc(m.short)+'</span>'+
+      '<div class="bk-top">'+crest(m,24)+
+        '<span class="bk-by">'+esc(m.short)+' wants <b style="color:'+col(b.team)+'">'+b.team+' '+theirPrice+'</b></span>'+
         '<span class="bk-stake">$'+b.stake+'</span></div>'+
-      '<div class="bk-mid">'+
-        '<img src="'+logo(b.team)+'" onerror="this.style.display=\'none\'" />'+
-        '<span class="bk-team" style="color:'+col(b.team)+'">'+b.team+'</span>'+
-        '<span class="bk-line">'+priced+'</span>'+
-        '<span class="bk-vs">vs '+other+' · '+kickText(g.kick)+'</span></div>'+
       (isMine
-        ? '<button class="bk-pull" onclick="pullBid(\''+b.id+'\')">Pull it</button>'
-        : '<button class="bk-take" onclick="confirmTake(\''+b.id+'\')">Take '+other+' '+
-          (g.line == null ? "" : (fav ? "+" : "-") + g.line)+' for $'+b.stake+'</button>')+
+        ? '<div class="bk-mine">Your bid. '+other+' '+yourPrice+' is what someone else would be taking.</div>'+
+          '<div class="bk-vs">'+g.away+' at '+g.home+' · '+kickText(g.kick)+'</div>'+
+          '<button class="bk-pull" onclick="pullBid(\''+b.id+'\')">Pull it</button>'
+        : '<div class="bk-you"><span class="bk-youtag">YOU WOULD GET</span>'+
+            '<div class="bk-mid">'+
+              '<img src="'+logo(other)+'" onerror="this.style.display=\'none\'" />'+
+              '<span class="bk-team" style="color:'+col(other)+'">'+other+'</span>'+
+              '<span class="bk-line">'+yourPrice+'</span></div>'+
+          '</div>'+
+          '<div class="bk-vs">'+g.away+' at '+g.home+' · '+kickText(g.kick)+'</div>'+
+          '<button class="bk-take" onclick="confirmTake(\''+b.id+'\')">Take '+other+' for $'+b.stake+'</button>')+
     '</div>';
   }).join("") : '<div class="note" style="padding:18px">Nothing on the board. Post one and see who bites.</div>';
 
@@ -790,7 +797,7 @@ function bookView(me) {
       '<span class="bkr-state">'+(state==="live"?"LIVE":state.toUpperCase())+'</span></div>';
   }).join("") : '<div class="note" style="padding:14px">No action yet this season.</div>';
 
-  return '<div class="bkhead"><b>The Book</b><span>Post a side, someone takes it, the app keeps score</span></div>'+
+  return '<div class="bkhead"><b>Marketplace</b><span>Post a side, someone takes it, the app keeps score</span></div>'+
     (others.length || pend.length ? '<div class="card" style="padding:12px 14px;margin-bottom:11px">'+
       '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">SQUARING UP</div>'+
       owedRows + pendRows + '</div>' : "")+
@@ -813,7 +820,9 @@ function bookSheet(me) {
       return '<button class="bkg'+(x.id===S.bookGame?" on":"")+'" onclick="pickBookGame(\''+x.id+'\')">'+
         x.away+' at '+x.home+'<i>'+kickText(x.kick)+'</i></button>';
     }).join("") : '<div class="note">Nothing left to bet this week.</div>')+'</div>'+
-    (g ? '<div class="bklabel">YOUR SIDE</div>'+
+    (g ? '<div class="bklabel">THE SIDE YOU WANT</div>'+
+      '<div style="font-size:11.5px;color:var(--muted);padding:0 3px 8px;line-height:1.45">'+
+      'Pick the team you are backing. Whoever takes this bid gets the other side.</div>'+
       '<div class="bkside">'+[g.away, g.home].map(function(t){
         const fav = g.fav === t;
         return '<button class="bks'+(t===S.bookSide?" on":"")+'" style="--c:'+col(t)+'" onclick="pickBookSide(\''+t+'\')">'+
@@ -837,19 +846,24 @@ function takeSheet(me) {
   if (!g || !poster) return "";
   const theirs = b.team, mine = b.team === g.home ? g.away : g.home;
   const myFav = g.fav === mine;
+  const yourPrice = g.line==null ? "no line" : (myFav?"-":"+")+g.line;
+  const theirPrice = g.line==null ? "no line" : (myFav?"+":"-")+g.line;
   return '<div class="veil" onclick="cancelTake()"><div class="sheet" onclick="event.stopPropagation()">'+
     '<div style="width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px"></div>'+
-    '<div style="font-size:20px;font-weight:800">Confirm the number</div>'+
-    '<div style="font-size:13px;color:var(--muted);margin-top:5px;line-height:1.5">'+
-      esc(poster.short)+' has '+theirs+'. You would be taking '+mine+'.</div>'+
+    '<div style="font-size:20px;font-weight:800">You are taking '+mine+'</div>'+
     '<div class="takebox">'+
       '<img src="'+logo(mine)+'" onerror="this.style.display=\'none\'" />'+
-      '<div><span class="tb-team">'+mine+'</span>'+
-      '<span class="tb-line">'+(g.line==null?"no line":(myFav?"-":"+")+g.line)+'</span></div>'+
+      '<div><span class="tb-team">'+mine+' '+yourPrice+'</span>'+
+      '<span class="tb-line">your side</span></div>'+
       '<span class="tb-amt">$'+b.stake+'</span></div>'+
-    '<div style="font-size:11.5px;color:var(--muted);margin-top:9px;line-height:1.45">'+
-      'This is the live number right now. Accepting locks it for both of you.</div>'+
-    '<button class="btn go" style="margin-top:14px" onclick="takeBid(\''+S.taking+'\')">Take it</button>'+
+    '<div class="takethem">'+crest(poster,22)+
+      '<span>'+esc(poster.short)+' keeps <b>'+theirs+' '+theirPrice+'</b></span></div>'+
+    '<div style="font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.45">'+
+      'Live number right now. Once you lock it there is no undo and no take backs, '+
+      'win or lose you settle up with '+esc(poster.short)+'.</div>'+
+    (S.armed
+      ? '<button class="btn go armed" style="margin-top:14px" onclick="takeBid(\''+S.taking+'\')">Tap again to lock it in</button>'
+      : '<button class="btn" style="margin-top:14px;background:var(--ink);color:#fff" onclick="armTake()">Take '+mine+' '+yourPrice+'</button>')+
     '<button class="btn" style="margin-top:8px;background:transparent;border:1px solid var(--line);color:var(--muted)" onclick="cancelTake()">Never mind</button>'+
   '</div></div>';
 }
@@ -1420,7 +1434,7 @@ function survView(me) {
 
 function boardView(me) {
   const base = [["season","Season"],["standings","Survivor"],["reveal","Week"]];
-  if (FEAT().market) base.push(["book", "Book"]);
+  if (FEAT().market) base.push(["book", "Market"]);
   if (FEAT().stats) base.push(["stats","Stats"]);
   if (FEAT().trophy) base.push(["history","Trophy"]);
   if (FEAT().ledger) base.push(["ledger","Ledger"]);
