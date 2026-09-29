@@ -108,8 +108,10 @@
   .hteams { display:flex; flex-direction:column; align-items:center; gap:1px; }
   .hteams img { width:15px; height:15px; object-fit:contain; }
   .hteams u { text-decoration:none; font-size:6px; color:var(--muted); font-weight:700; }
-  .hspread { font-style:normal; font-size:8px; font-weight:800; letter-spacing:.2px; color:var(--muted);
-             white-space:nowrap; }
+  .hspread { font-style:normal; font-size:7px; line-height:1.05; font-weight:800; letter-spacing:0;
+             color:var(--muted); display:flex; flex-direction:column; align-items:center;
+             max-width:100%; overflow:hidden; white-space:nowrap; }
+  .hspread em { font-style:normal; }
   .gcell.gname, .gcell.corner { position:sticky; left:0; background:var(--panel); z-index:2;
                  justify-content:flex-start; font-size:13.5px; gap:7px; border-radius:9px;
                  padding:7px 9px 7px 7px; overflow:hidden; }
