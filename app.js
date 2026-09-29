@@ -1636,6 +1636,7 @@ function reveal(me) {
         '<u>at</u>'+
         '<img src="'+logo(g.home)+'" alt="'+g.home+'" onerror="this.style.display=\'none\'" />'+
       '</span>'+
+      '<i class="hspread">'+(g.line==null?"—":g.fav+" -"+g.line)+'</i>'+
       (r?'<b>'+(r.ats==="PUSH"?"PUSH":r.ats)+'</b>':'<b class="live">LIVE</b>')+'</div>';
   }).join("");
 
@@ -1742,6 +1743,7 @@ function revealPast(me, back) {
     return '<div class="gcell ghead">'+
       '<span class="hteams"><img src="'+logo(g.away)+'" onerror="this.style.display=\'none\'" /><u>at</u>'+
       '<img src="'+logo(g.home)+'" onerror="this.style.display=\'none\'" /></span>'+
+      '<i class="hspread">'+(g.line==null?"—":g.fav+" -"+g.line)+'</i>'+
       '<b>'+(g.archived.ats === "PUSH" ? "PUSH" : g.archived.ats)+'</b></div>';
   }).join("");
 
