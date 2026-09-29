@@ -357,12 +357,18 @@ function applyLines() {
   const saved = (LGS().lines || {})[S.weekKey] || {};
   const out = [];
   const toSave = [];
+  const gates = weekGates();
+  const linesFrozen = gates.satFreeze != null && Date.now() >= gates.satFreeze;
   (S.raw || []).forEach(function(g){
     const g2 = Object.assign({}, g);
-    if (g2.fav && g2.line != null) {
+    if (linesFrozen && saved[g2.id]) {
+      // spreads freeze Saturday 12pm ET — keep whatever line we had, ignore live ESPN odds
+      g2.fav = saved[g2.id].fav;
+      g2.line = saved[g2.id].line;
+    } else if (g2.fav && g2.line != null) {
       const known = saved[g2.id];
       if (!known || known.fav !== g2.fav || known.line !== g2.line) {
-        toSave.push({ id:g2.id, fav:g2.fav, line:g2.line });
+        if (!linesFrozen) toSave.push({ id:g2.id, fav:g2.fav, line:g2.line });
       }
     } else if (saved[g2.id]) {
       g2.fav = saved[g2.id].fav;
@@ -370,7 +376,7 @@ function applyLines() {
     } else if (CLOSING[g2.away + "@" + g2.home]) {
       const k = CLOSING[g2.away + "@" + g2.home];
       g2.fav = k.fav; g2.line = k.line;
-      toSave.push({ id:g2.id, fav:k.fav, line:k.line });
+      if (!linesFrozen) toSave.push({ id:g2.id, fav:k.fav, line:k.line });
     }
     out.push(g2);
   });
@@ -903,7 +909,7 @@ function potential(who) {
     if (graded(g)) return;                       // already counted
     const worth = (ml === g.id) ? 2 : 1;
     if (pk[g.id]) more += worth;                 // a pick still alive
-    else if (!kicked(g) && !locked) more += worth; // could still be picked
+    else if (!pickLocked(g) && !locked) more += worth; // could still be picked
   });
   return { now: r.pts, max: r.pts + more, live: more };
 }
@@ -911,6 +917,62 @@ const inPool  = () => ROSTER().filter(function(m){
   return Object.keys(picksOf(m.id)).length || survOf(m.id) || survLosses(m.id).lost > 0;
 });
 const kicked  = g => Date.now() >= new Date(g.kick).getTime();
+
+// ---- weekly pick-lock schedule ---------------------------------------
+// Rules (all times US/Eastern):
+//   - Spread lines freeze at Saturday 12:00pm ET and stop moving for the week.
+//   - The Thursday-night game's pick locks Thursday 10:00am ET.
+//   - Every other pick (Sun/Mon) stays editable until Sunday 1:00pm ET,
+//     at which point ALL remaining picks for the week lock at once —
+//     not just the games that are actually kicking off then.
+const ET_TZ = "America/New_York";
+function etFieldParts(ts, opts) {
+  const f = new Intl.DateTimeFormat("en-US", Object.assign({ timeZone: ET_TZ }, opts));
+  const out = {};
+  f.formatToParts(new Date(ts)).forEach(function(p){ out[p.type] = p.value; });
+  return out;
+}
+function etWeekday(ts) {
+  // 0=Sun..6=Sat, matching Date#getDay()
+  const w = etFieldParts(ts, { weekday: "short" }).weekday;
+  return { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 }[w];
+}
+// Returns the epoch ms for `hour`:`minute` ET on the ET calendar day containing `ts`.
+function etWallTime(ts, hour, minute) {
+  minute = minute || 0;
+  const p = etFieldParts(ts, { year:"numeric", month:"2-digit", day:"2-digit" });
+  const y = +p.year, mo = +p.month, da = +p.day;
+  for (let off = 4; off <= 5; off++) {
+    const guess = Date.UTC(y, mo - 1, da, hour + off, minute, 0);
+    const chk = etFieldParts(guess, { hour:"2-digit", minute:"2-digit", hour12:false });
+    if (+chk.hour % 24 === hour && +chk.minute === minute) return guess;
+  }
+  return Date.UTC(y, mo - 1, da, hour + 5, minute, 0); // fallback: EST
+}
+// Week-level lock timestamps, derived from the actual kickoff times ESPN gave us.
+function weekGates() {
+  const raw = S.raw || S.games || [];
+  const thuG = raw.find(function(g){ return etWeekday(g.kick) === 4; });
+  const sunG = raw.filter(function(g){ return etWeekday(g.kick) === 0; })
+    .sort(function(a,b){ return new Date(a.kick) - new Date(b.kick); })[0];
+  const sunTs = sunG ? new Date(sunG.kick).getTime() : null;
+  return {
+    thuLock:   thuG ? etWallTime(new Date(thuG.kick).getTime(), 10, 0) : null,
+    satFreeze: sunTs != null ? etWallTime(sunTs - 86400000, 12, 0) : null,
+    sunLock:   sunTs != null ? etWallTime(sunTs, 13, 0) : null
+  };
+}
+// Whether a given game's PICK is locked under the week-level schedule
+// (on top of, not instead of, the game's own actual kickoff).
+function pickLocked(g) {
+  if (!g) return false;
+  if (kicked(g)) return true;
+  const gates = weekGates();
+  const now = Date.now();
+  if (gates.sunLock != null && now >= gates.sunLock) return true; // blanket week lock
+  if (etWeekday(g.kick) === 4 && gates.thuLock != null && now >= gates.thuLock) return true;
+  return false;
+}
 
 function graded(g) {
   if (!g.done || g.hs == null) return null;
@@ -1316,7 +1378,7 @@ function picksView(me) {
   const hooked = FEAT().wendell && S.games.some(function(g){ return g.wendell && mine[g.id]; });
 
   const rows = S.games.map(function(g){
-    const shut = kicked(g) || lockedIn, r = graded(g);
+    const shut = pickLocked(g) || lockedIn, r = graded(g);
     function side(t, tag) {
       const on = mine[g.id] === t, off = mine[g.id] && !on, fav = g.fav === t, good = r && r.ats === t;
       const vars = "--team:"+col(t)+";--teamHi:"+shade(col(t),32)+";--teamLo:"+shade(col(t),-28)+";--teamMid:"+shade(col(t),-6);
@@ -1337,7 +1399,7 @@ function picksView(me) {
       ? '<button class="mlock on" onclick="setLock(\''+g.id+'\')">★ MORTAL LOCK · 2 PTS</button>'
       : (canLock ? '<button class="mlock" onclick="setLock(\''+g.id+'\')">☆ MORTAL LOCK</button>' : '');
     return '<div class="plates"><div class="pkick">'+kickText(g.kick).toUpperCase()+
-      (g.done?" · "+g.as+"-"+g.hs+" FINAL":g.state!=="pre"?" · LIVE":"")+'</div>'+
+      (g.done?" · "+g.as+"-"+g.hs+" FINAL":g.state!=="pre"?" · LIVE":(shut&&!lockedIn?" · LOCKED":""))+'</div>'+
       '<div class="bug" id="bug-'+g.id+'">'+side(g.away,"AWAY")+
       '<div class="pmid">'+(g.line==null
         ? '<b style="font-size:11px">NO</b><span>LINE</span>'
@@ -1359,7 +1421,7 @@ function picksView(me) {
       '<div style="font-size:13px;margin-top:5px;line-height:1.45">Total points scored in '+
         tbGame().away+' at '+tbGame().home+'. Closest wins a tie.</div>'+
       '<input inputmode="numeric" value="'+(tbOf(me.id)!=null?tbOf(me.id):"")+'" '+
-        (lockedIn||kicked(tbGame())?"disabled":"")+' oninput="saveTb(this.value)" placeholder="47" '+
+        (lockedIn||pickLocked(tbGame())?"disabled":"")+' oninput="saveTb(this.value)" placeholder="47" '+
         'style="width:92px;margin-top:9px;padding:10px;font-size:17px;font-weight:800;text-align:center;'+
         'border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)" />'+
       (tbActual()!=null?'<div style="font-size:12px;color:var(--muted);margin-top:7px">Final total was '+tbActual()+'</div>':"")+
@@ -1395,7 +1457,7 @@ function survView(me) {
     const t = x.t, g = x.g;
     const on = mine === t;
     const isUsed = used.indexOf(t) > -1;
-    const shut = isUsed || kicked(g) || (lockedIn && !on);
+    const shut = isUsed || pickLocked(g) || (lockedIn && !on);
     const vars = "--team:"+col(t)+";--teamHi:"+shade(col(t),32)+";--teamLo:"+shade(col(t),-28)+";--teamMid:"+shade(col(t),-6);
     return '<div class="plates">'+
       '<div class="bug"><button class="seg '+(on?"on":"")+' '+(mine&&!on?"off":"")+'" id="sv-'+g.id+'-'+t+'" '+
@@ -1845,7 +1907,7 @@ window.signOut = function(){
 window.tap = async function(gid, team) {
   if (lockOf(S.me)) return;
   const g = S.games.find(function(x){ return x.id === gid; });
-  if (g && kicked(g)) return;
+  if (g && pickLocked(g)) return;
   const cur = picksOf(S.me);
   const clearing = cur[gid] === team;
   await put(P("picks."+S.weekKey+"."+S.me+"."+gid), clearing ? null : team);
@@ -1864,7 +1926,7 @@ window.togglePeek = function(){
 window.pickSurv = async function(t){
   if (slockOf(S.me)) return;
   const sg = S.games.find(function(x){ return x.home === t || x.away === t; });
-  if (sg && kicked(sg)) return;
+  if (sg && pickLocked(sg)) return;
   const burned = Object.keys(LGS().surv||{}).some(function(wk){
     return wk !== S.weekKey && (LGS().surv[wk]||{})[S.me] === t;
   });
@@ -1880,14 +1942,14 @@ window.lockSurv = async function(){ await put(P("slock."+S.weekKey+"."+S.me), Da
 window.unlockSurv = async function(){ await put(P("slock."+S.weekKey+"."+S.me), null); render(); };
 window.saveTb = async function(v){
   if (lockOf(S.me)) return;
-  const g = tbGame(); if (g && kicked(g)) return;
+  const g = tbGame(); if (g && pickLocked(g)) return;
   const n = String(v).replace(/[^0-9]/g,"").slice(0,3);
   await put(P("tb."+S.weekKey+"."+S.me), n === "" ? null : Number(n));
 };
 window.setLock = async function(gid){
   if (lockOf(S.me)) return;
   const gg = S.games.find(function(x){ return x.id === gid; });
-  if (gg && kicked(gg)) return;
+  if (gg && pickLocked(gg)) return;
   const cur = mlockOf(S.me);
   await put(P("mlock."+S.weekKey+"."+S.me), cur === gid ? null : gid);
   render();
