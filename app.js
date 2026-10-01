@@ -357,18 +357,17 @@ function applyLines() {
   const saved = (LGS().lines || {})[S.weekKey] || {};
   const out = [];
   const toSave = [];
-  const gates = weekGates();
-  const linesFrozen = gates.satFreeze != null && Date.now() >= gates.satFreeze;
   (S.raw || []).forEach(function(g){
     const g2 = Object.assign({}, g);
+    const linesFrozen = lineFrozen(g2);
     if (linesFrozen && saved[g2.id]) {
-      // spreads freeze Saturday 12pm ET — keep whatever line we had, ignore live ESPN odds
+      // spread is locked for this game: keep the line we had, ignore ESPN moves
       g2.fav = saved[g2.id].fav;
       g2.line = saved[g2.id].line;
     } else if (g2.fav && g2.line != null) {
       const known = saved[g2.id];
       if (!known || known.fav !== g2.fav || known.line !== g2.line) {
-        if (!linesFrozen) toSave.push({ id:g2.id, fav:g2.fav, line:g2.line });
+        if (!linesFrozen || !known) toSave.push({ id:g2.id, fav:g2.fav, line:g2.line }); // first sighting after lock still gets pinned
       }
     } else if (saved[g2.id]) {
       g2.fav = saved[g2.id].fav;
@@ -376,7 +375,7 @@ function applyLines() {
     } else if (CLOSING[g2.away + "@" + g2.home]) {
       const k = CLOSING[g2.away + "@" + g2.home];
       g2.fav = k.fav; g2.line = k.line;
-      if (!linesFrozen) toSave.push({ id:g2.id, fav:k.fav, line:k.line });
+      toSave.push({ id:g2.id, fav:k.fav, line:k.line });
     }
     out.push(g2);
   });
@@ -918,13 +917,12 @@ const inPool  = () => ROSTER().filter(function(m){
 });
 const kicked  = g => Date.now() >= new Date(g.kick).getTime();
 
-// ---- weekly pick-lock schedule ---------------------------------------
-// Rules (all times US/Eastern):
-//   - Spread lines freeze at Saturday 12:00pm ET and stop moving for the week.
-//   - The Thursday-night game's pick locks Thursday 10:00am ET.
-//   - Every other pick (Sun/Mon) stays editable until Sunday 1:00pm ET,
-//     at which point ALL remaining picks for the week lock at once —
-//     not just the games that are actually kicking off then.
+// ---- spread lock schedule ---------------------------------------------
+// Picks stay open until each game's own kickoff. Only the NUMBER locks:
+//   - Any game kicking off before Saturday locks its spread at 10:00am ET on game day
+//     (so the Thursday game locks Thursday 10am).
+//   - Every other game locks its spread Saturday 12:00pm ET.
+// After that, ESPN line moves are ignored for the week.
 const ET_TZ = "America/New_York";
 function etFieldParts(ts, opts) {
   const f = new Intl.DateTimeFormat("en-US", Object.assign({ timeZone: ET_TZ }, opts));
@@ -949,30 +947,23 @@ function etWallTime(ts, hour, minute) {
   }
   return Date.UTC(y, mo - 1, da, hour + 5, minute, 0); // fallback: EST
 }
-// Week-level lock timestamps, derived from the actual kickoff times ESPN gave us.
-function weekGates() {
+// Saturday 12pm ET for the current slate, from the earliest Sunday kickoff.
+function satFreezeTs() {
   const raw = S.raw || S.games || [];
-  const thuG = raw.find(function(g){ return etWeekday(g.kick) === 4; });
   const sunG = raw.filter(function(g){ return etWeekday(g.kick) === 0; })
     .sort(function(a,b){ return new Date(a.kick) - new Date(b.kick); })[0];
-  const sunTs = sunG ? new Date(sunG.kick).getTime() : null;
-  return {
-    thuLock:   thuG ? etWallTime(new Date(thuG.kick).getTime(), 10, 0) : null,
-    satFreeze: sunTs != null ? etWallTime(sunTs - 86400000, 12, 0) : null,
-    sunLock:   sunTs != null ? etWallTime(sunTs, 13, 0) : null
-  };
+  return sunG ? etWallTime(new Date(sunG.kick).getTime() - 86400000, 12, 0) : null;
 }
-// Whether a given game's PICK is locked under the week-level schedule
-// (on top of, not instead of, the game's own actual kickoff).
-function pickLocked(g) {
-  if (!g) return false;
-  if (kicked(g)) return true;
-  const gates = weekGates();
-  const now = Date.now();
-  if (gates.sunLock != null && now >= gates.sunLock) return true; // blanket week lock
-  if (etWeekday(g.kick) === 4 && gates.thuLock != null && now >= gates.thuLock) return true;
-  return false;
+// When this game's spread stops moving.
+function lineFreezeAt(g) {
+  const kick = new Date(g.kick).getTime();
+  const sat = satFreezeTs();
+  if (sat == null || kick < sat) return etWallTime(kick, 10, 0);
+  return sat;
 }
+function lineFrozen(g) { return !!g && Date.now() >= lineFreezeAt(g); }
+// Picks lock at each game's own kickoff.
+function pickLocked(g) { return !!g && kicked(g); }
 
 function graded(g) {
   if (!g.done || g.hs == null) return null;
@@ -1403,7 +1394,7 @@ function picksView(me) {
       '<div class="bug" id="bug-'+g.id+'">'+side(g.away,"AWAY")+
       '<div class="pmid">'+(g.line==null
         ? '<b style="font-size:11px">NO</b><span>LINE</span>'
-        : '<b>'+g.line+'</b><span>SPREAD</span>')+'</div>'+
+        : '<b>'+g.line+'</b><span>'+(lineFrozen(g)?"LOCKED":"SPREAD")+'</span>')+'</div>'+
       side(g.home,"HOME")+'</div>'+
       (lockBtn?'<div style="padding:5px 2px 0">'+lockBtn+'</div>':"")+'</div>';
   }).join("");
