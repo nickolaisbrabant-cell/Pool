@@ -120,7 +120,7 @@
             overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gnsub { display:flex; align-items:center; gap:7px; margin-top:2px; }
   /* first place: a live gold rail that runs around the cell */
-  .gcell.gname.lead { position:relative; overflow:hidden; z-index:3; border-radius:9px;
+  .gcell.gname.lead { position:sticky; left:0; overflow:hidden; z-index:3; border-radius:9px;
       background:
         linear-gradient(var(--panel), var(--panel)) padding-box,
         conic-gradient(from var(--spin), #8A5F14, #FFF3D2 12%, #F2C566 24%, #8A5F14 42%,
@@ -144,7 +144,7 @@
   .gcell.gname u { text-decoration:none; font-size:10.5px; color:var(--muted); font-weight:800;
                    letter-spacing:.2px; font-variant-numeric:tabular-nums; }
   .gcell.muted { opacity:.22; }
-  .gcell.gname.muted { opacity:.35; }
+  .gcell.gname.muted > * { opacity:.35; }
   .gcell.corner { z-index:4; }
   .gcell.ghead span { color:var(--muted); font-weight:700; font-size:8.5px; display:block; }
   .gcell.ghead b { display:block; font-size:9px; color:var(--win); letter-spacing:.6px; font-weight:900; }
@@ -156,7 +156,7 @@
                         color:#2A1B02; box-shadow:0 1px 3px rgba(0,0,0,.3),
                         inset 0 1px 0 rgba(255,255,255,.75); position:relative; }
   .gcell.gname.lead .gnname { text-shadow:0 1px 0 rgba(255,255,255,.6); }
-  .gcell.gname.me { background:rgba(0,0,0,.04); }
+  .gcell.gname.me:not(.lead) { background:linear-gradient(rgba(0,0,0,.04),rgba(0,0,0,.04)), var(--panel); }
   .gcell.gname.cmp { box-shadow:inset 3px 0 0 var(--gold); }
   .gcell.pick.differs { box-shadow:inset 0 0 0 2px var(--edgeStrong); z-index:1; }
   .gcell.pick.agrees { opacity:.4; }
@@ -318,6 +318,19 @@
   .bkrow.lost .bkr-state { background:rgba(196,82,63,.14); color:var(--loss); }
   .bkrow.live .bkr-state { background:rgba(238,138,60,.18); color:var(--gold); }
 
+  .bkfeed { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:6px;
+            padding:9px 10px; border-radius:10px; background:var(--panel);
+            border:1px solid var(--line); margin-bottom:6px; }
+  .bkf-side { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; }
+  .bkf-name { font-size:12px; font-weight:800; max-width:100%; overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap; }
+  .bkf-team { font-size:11.5px; font-weight:900; white-space:nowrap; }
+  .bkf-mid { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .bkf-mid b { font-size:15px; font-weight:900; font-variant-numeric:tabular-nums; }
+  .bkf-mid i { font-style:normal; font-size:8px; letter-spacing:1px; font-weight:900; padding:3px 6px;
+               border-radius:5px; background:rgba(0,0,0,.05); color:var(--muted); white-space:nowrap; }
+  .bkfeed.live .bkf-mid i { background:rgba(238,138,60,.18); color:var(--gold); }
+  .bkfeed.done .bkf-mid i { background:rgba(23,126,99,.16); color:var(--win); }
   .bkline { display:flex; align-items:center; gap:9px; padding:8px 0; }
   .bk-who { flex:1; font-weight:700; font-size:13.5px; }
   .bk-amt { font-size:17px; font-weight:900; font-variant-numeric:tabular-nums; }
