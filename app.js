@@ -1003,14 +1003,102 @@ function lineFrozen(g) { return !!g && Date.now() >= lineFreezeAt(g); }
 // Picks lock at each game's own kickoff.
 function pickLocked(g) { return !!g && kicked(g); }
 
+// The spread is the only source of truth. A game with no known line is never
+// graded off the straight-up winner; it just waits until the line is found.
+function gradeScore(home, away, hs, as, fav, line) {
+  if (hs == null || as == null || line == null || !fav) return null;
+  const su = hs > as ? home : as > hs ? away : "PUSH";
+  const fh = fav === home;
+  const margin = (fh?hs:as) - (fh?as:hs);
+  const ats = margin > line ? fav : margin < line ? (fh?away:home) : "PUSH";
+  return { ats:ats, su:su };
+}
 function graded(g) {
   if (!g.done || g.hs == null) return null;
-  const su = g.hs > g.as ? g.home : g.as > g.hs ? g.away : "PUSH";
-  if (g.line == null || !g.fav) return { ats:su, su:su, noline:true };
-  const fh = g.fav === g.home;
-  const margin = (fh?g.hs:g.as) - (fh?g.as:g.hs);
-  const ats = margin > g.line ? g.fav : margin < g.line ? (fh?g.away:g.home) : "PUSH";
-  return { ats:ats, su:su };
+  return gradeScore(g.home, g.away, g.hs, g.as, g.fav, g.line);
+}
+
+// ESPN's scoreboard drops the spread once a game ends. Our server asks ESPN's
+// odds service instead, which keeps it.
+const ODDS_TRIED = {};
+async function fetchOdds(gid, home) {
+  if (S.demo) return null;
+  try {
+    const r = await fetch("/api/state?odds=" + encodeURIComponent(gid));
+    const d = await r.json();
+    if (!d.ok || !d.odds) return null;
+    if (d.odds.line === 0 && !d.odds.fav) return { fav: home, line: 0 };
+    if (!d.odds.fav || d.odds.line == null) return null;
+    return { fav: d.odds.fav, line: d.odds.line };
+  } catch (e) { return null; }
+}
+// Any started game still missing a line: look it up and pin it.
+async function fillLines() {
+  if (S.demo || !S.ok || !S.lg) return;
+  let changed = false;
+  for (const g of S.games) {
+    if (g.line != null && g.fav) continue;
+    if (!kicked(g)) continue;
+    const last = ODDS_TRIED[g.id] || 0;
+    if (Date.now() - last < 10 * 60000) continue;
+    ODDS_TRIED[g.id] = Date.now();
+    const o = await fetchOdds(g.id, g.home);
+    if (!o) continue;
+    await put(P("lines." + S.weekKey + "." + g.id), o);
+    changed = true;
+  }
+  if (changed) applyLines();
+}
+// One time clean up: regrade every archived game against the spread, using real
+// final scores. Fixes weeks where a missing line handed out straight-up wins.
+let REPAIRING = false;
+async function repairArchive() {
+  if (S.demo || !S.ok || !S.lg || REPAIRING) return;
+  REPAIRING = true;
+  try {
+    const res = LGS().res || {};
+    const done = (LGS().fix || {}).ats1 || {};
+    for (const wk of Object.keys(res)) {
+      if (done[wk]) continue;
+      const n = parseInt(wk.slice(1), 10), year = wk.split("-")[1];
+      if (!n || !year) continue;
+      let events;
+      try {
+        const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=" + n + "&dates=" + year);
+        events = ((await r.json()).events) || [];
+      } catch (e) { continue; }
+      const score = {};
+      events.forEach(function(ev){
+        const c = ev.competitions[0];
+        if (!c.status.type.completed) return;
+        const h = c.competitors.find(function(x){ return x.homeAway === "home"; });
+        const a = c.competitors.find(function(x){ return x.homeAway === "away"; });
+        score[ev.id] = { home:h.team.abbreviation, away:a.team.abbreviation, hs:Number(h.score), as:Number(a.score) };
+      });
+      const saved = (LGS().lines || {})[wk] || {};
+      let allGood = true;
+      for (const gid of Object.keys(res[wk])) {
+        const r0 = res[wk][gid], sc = score[gid];
+        if (!sc) { allGood = false; continue; }
+        let fav = null, line = null;
+        if (r0.line != null && r0.fav) { fav = r0.fav; line = r0.line; }
+        else if (saved[gid] && saved[gid].line != null && saved[gid].fav) { fav = saved[gid].fav; line = saved[gid].line; }
+        else {
+          const o = await fetchOdds(gid, sc.home);
+          if (o) { fav = o.fav; line = o.line; }
+        }
+        const gr = gradeScore(sc.home, sc.away, sc.hs, sc.as, fav, line);
+        if (!gr) { allGood = false; continue; }
+        if (gr.ats !== r0.ats || gr.su !== r0.su || r0.line !== line || r0.fav !== fav) {
+          await put(P("res." + wk + "." + gid), {
+            ats: gr.ats, su: gr.su, home: sc.home, away: sc.away, fav: fav, line: line,
+            hs: sc.hs, as: sc.as, fixed: true
+          });
+        }
+      }
+      if (allGood) await put(P("fix.ats1." + wk), true);
+    }
+  } finally { REPAIRING = false; }
 }
 function record(who) {
   let w=0,l=0,p=0,pts=0; const pk = picksOf(who); const ml = mlockOf(who);
@@ -2147,7 +2235,7 @@ async function archive() {
     const r = graded(g);
     if (!r || have[g.id]) continue;
     await put(P("res."+S.weekKey + "." + g.id), {
-      ats: r.ats, su: r.su, home: g.home, away: g.away, fav: g.fav, line: g.line
+      ats: r.ats, su: r.su, home: g.home, away: g.away, fav: g.fav, line: g.line, hs: g.hs, as: g.as
     });
   }
 }
@@ -2237,9 +2325,11 @@ window.setCmp = function(id){ S.cmp = (id && S.cmp === id) ? "" : id; render(); 
   try { await loadGames(); } catch(e) {}
   await loadState();
   applyLines();
+  await fillLines();
   await archive();
   S.ready = true;
   render();
+  repairArchive().then(render);
   // the board syncs often, ESPN gets left alone unless a game is running
   let lastGames = Date.now();
   let lastSig = "";
@@ -2254,6 +2344,7 @@ window.setCmp = function(id){ S.cmp = (id && S.cmp === id) ? "" : id; render(); 
     }
     await Promise.all(jobs);
     applyLines();
+    await fillLines();
     await archive();
     // only redraw when something actually changed, so images are not torn down every 30s
     const sig = JSON.stringify([S.state, S.games, S.games.filter(kicked).length, S.games.filter(lineFrozen).length]);
