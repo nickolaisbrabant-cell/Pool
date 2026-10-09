@@ -246,29 +246,77 @@
   .throwbar span { font-size:19px; }
   .throwbar b { color:var(--gold); font-weight:900; }
 
-  .splat { position:fixed; inset:0; z-index:90; background:rgba(20,12,4,.62);
-           backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center;
+  .splat { position:fixed; inset:0; z-index:90; background:rgba(28,16,4,.7);
+           display:flex; align-items:center; justify-content:center; overflow:hidden;
            animation:splatin 260ms ease-out; }
   @keyframes splatin { from { opacity:0; } to { opacity:1; } }
-  .splatblob { position:absolute; font-size:74px; line-height:1; transform:scale(0) rotate(var(--rot));
-               animation:splatdrop 520ms cubic-bezier(.2,1.5,.4,1) forwards;
-               filter:drop-shadow(0 6px 10px rgba(0,0,0,.5)); }
-  @keyframes splatdrop {
-    0%   { transform:scale(2.4) rotate(var(--rot)); opacity:0; }
-    60%  { transform:scale(.88) rotate(var(--rot)); opacity:1; }
-    100% { transform:scale(1) rotate(var(--rot)); opacity:1; }
+  .splatshake { position:absolute; inset:0; animation:sshake 520ms cubic-bezier(.36,.07,.19,.97) var(--impact) both; }
+  @keyframes sshake {
+    10%,90% { transform:translate(-2px,1px); } 20%,80% { transform:translate(5px,-3px); }
+    30%,50%,70% { transform:translate(-9px,4px) rotate(-.6deg); } 40%,60% { transform:translate(9px,-4px) rotate(.6deg); }
   }
-  .splatcard { position:relative; z-index:2; width:min(320px,86vw); background:var(--panel);
+  .splathit { position:absolute; transform:translate(-50%,-50%) rotate(var(--rot)); }
+  .splatpoo { position:absolute; left:50%; top:50%; font-size:84px; line-height:1; z-index:2;
+              transform:translate(-50%,-50%); opacity:0;
+              animation:pooflight 520ms cubic-bezier(.55,0,1,.45) var(--d) both; }
+  @keyframes pooflight {
+    0%   { transform:translate(-50%,-260%) scale(3.2) rotate(-200deg); opacity:1; }
+    92%  { transform:translate(-50%,-50%) scale(1) rotate(0deg); opacity:1; }
+    100% { transform:translate(-50%,-50%) scale(1.5); opacity:0; }
+  }
+  .splatmark { transform:scale(0); transform-origin:50% 38%;
+               animation:splatburst 420ms cubic-bezier(.15,1.6,.4,1) calc(var(--d) + 480ms) forwards; }
+  @keyframes splatburst { 0% { transform:scale(.1); } 100% { transform:scale(1); } }
+  .splatsvg { display:block; overflow:visible; filter:drop-shadow(0 6px 10px rgba(0,0,0,.45)); }
+  .splatsvg .spd { animation:dropfly 380ms cubic-bezier(.1,.9,.3,1) both;
+                   animation-delay:calc(var(--d,0ms) + 500ms); }
+  @keyframes dropfly { from { transform:translate(var(--dx),var(--dy)) scale(.2); } to { transform:none; } }
+  .splatsvg .sdrip { transform-box:fill-box; transform-origin:50% 0; transform:scaleY(0);
+                     animation-name:drip; animation-timing-function:cubic-bezier(.4,0,.6,1); animation-fill-mode:forwards; }
+  @keyframes drip { to { transform:scaleY(1); } }
+  .splatsvg .sgloss { fill:rgba(255,236,200,.28); }
+  .splatcard { position:relative; z-index:3; width:min(330px,88vw); background:var(--panel);
                border-radius:18px; padding:20px; text-align:center;
-               box-shadow:0 18px 40px -12px rgba(0,0,0,.6); animation:splatcard 420ms ease-out; }
-  @keyframes splatcard { from { transform:translateY(14px) scale(.94); opacity:0; } to { transform:none; opacity:1; } }
-  .sp-tag { font-size:9.5px; letter-spacing:2.4px; font-weight:900; color:var(--loss); }
-  .sp-line { font-size:17px; font-weight:800; margin-top:8px; line-height:1.3; }
-  .sp-sub { font-size:12.5px; color:var(--muted); margin-top:6px; }
+               box-shadow:0 18px 40px -12px rgba(0,0,0,.6);
+               animation:splatcard 480ms cubic-bezier(.2,1.4,.4,1) calc(var(--impact) + 700ms) both; }
+  @keyframes splatcard { from { transform:translateY(40px) scale(.85); opacity:0; } to { transform:none; opacity:1; } }
+  .sp-tag { font-size:10px; letter-spacing:3px; font-weight:900; color:var(--loss); }
+  .sp-line { font-size:18px; font-weight:900; margin-top:8px; line-height:1.3; }
+  .sp-sub { font-size:12px; color:var(--muted); margin-top:10px; }
+  .sp-note { display:flex; gap:10px; align-items:flex-start; text-align:left; margin-top:12px;
+             padding:11px 12px; border-radius:12px; background:#F3E6D2; border:1px solid #DCC19A;
+             transform:rotate(-1.2deg); }
+  .sp-note b { font-size:11px; letter-spacing:1px; text-transform:uppercase; color:#6B3F17; }
+  .sp-note p { margin:3px 0 0; font-size:16px; font-weight:800; line-height:1.3; color:#2A1A08; word-break:break-word; }
+  .splat.settled, .splat.settled * { animation:none !important; }
+  .splat.settled .splatpoo { opacity:0; }
+  .splat.settled .splatmark, .splat.settled .sdrip { transform:none; }
+  .splat.settled .splathit .splatmark { transform:scale(1); }
+  .splat.wiping .splatshake { transition:transform 500ms ease-in, opacity 500ms ease-in;
+                              transform:translateY(60%) scaleY(1.6); opacity:0; }
+  .splat.wiping .splatcard { transition:opacity 300ms; opacity:0; }
+  .splat.wiping { transition:background 500ms; background:rgba(28,16,4,0); }
+
+  .throwmsg { width:100%; margin-top:14px; padding:12px; border-radius:12px; border:1px solid var(--line);
+              background:#fff; color:var(--ink); font:inherit; font-size:16px; resize:none; }
+  .launch { position:fixed; inset:0; z-index:95; pointer-events:none; display:flex;
+            align-items:center; justify-content:center; }
+  .launchpoo { position:absolute; left:50%; bottom:-80px; font-size:72px;
+               animation:launchup 900ms cubic-bezier(.3,.1,.6,1) forwards; }
+  @keyframes launchup {
+    0% { transform:translateX(-50%) scale(1) rotate(0); }
+    100% { transform:translate(-50%,-120vh) scale(.4) rotate(720deg); }
+  }
+  .launchtxt { padding:12px 18px; border-radius:14px; background:var(--ink); color:#fff;
+               font-size:16px; font-weight:900; opacity:0; animation:launchtxt 1600ms ease forwards 300ms; }
+  @keyframes launchtxt { 0% { opacity:0; transform:scale(.8); } 20% { opacity:1; transform:scale(1.05); }
+                         30%,80% { opacity:1; transform:scale(1); } 100% { opacity:0; } }
 
   @media (prefers-reduced-motion: reduce) {
-    .splatblob, .splatcard, .splat { animation:none; }
-    .splatblob { transform:scale(1) rotate(var(--rot)); opacity:1; }
+    .splat *, .launch * { animation:none !important; }
+    .splatmark, .sdrip { transform:none !important; }
+    .splatpoo, .launchpoo { display:none; }
+    .launchtxt { opacity:1; }
   }
   .numwrap { display:inline-flex; align-items:center; gap:5px; margin-left:auto; }
   .numwrap span { font-size:9px; letter-spacing:1.4px; font-weight:800; color:var(--muted); }

@@ -1051,6 +1051,49 @@ async function fillLines() {
 }
 // One time clean up: regrade every archived game against the spread, using real
 // final scores. Fixes weeks where a missing line handed out straight-up wins.
+// One time data fix: mortal locks that were lost in the week 3 mid-game unlock mess.
+async function restoreLocks() {
+  if (S.demo || !S.ok) return;
+  const omw = (S.state.lg || {}).omw || {};
+  if ((omw.fix || {}).mlock1) return;
+  if (!(((omw.mlock || {})["w3-2026"] || {}).nick)) {
+    const ok = await put("lg.omw.mlock.w3-2026.nick", "401872957");   // JAX vs NE
+    if (!ok) return;
+  }
+  await put("lg.omw.fix.mlock1", true);
+}
+// One time data fix: DET vs NYJ week 3 was DET -7 and ended 31-24, a push.
+async function restorePushes() {
+  if (S.demo || !S.ok) return;
+  const omw = (S.state.lg || {}).omw || {};
+  if ((omw.fix || {}).push1) return;
+  const ok = await put("lg.omw.res.w3-2026.401872954", {
+    ats:"PUSH", su:"DET", home:"DET", away:"NYJ", fav:"DET", line:7, hs:31, as:24, fixed:true
+  });
+  if (!ok) return;
+  await put("lg.omw.lines.w3-2026.401872954", { fav:"DET", line:7 });
+  await put("lg.omw.fix.push1", true);
+}
+// Past weeks: record the tiebreaker game's total so ties for the crown can be broken.
+async function fillTbTotals() {
+  if (S.demo || !S.ok || !S.lg) return;
+  const have = LGS().tbres || {};
+  for (const wk of completedWeeks()) {
+    if (typeof have[wk] === "number" || wk === S.weekKey) continue;
+    const n = parseInt(wk.slice(1), 10), year = wk.split("-")[1];
+    try {
+      const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=" + n + "&dates=" + year);
+      const evs = (((await r.json()).events) || []).map(function(ev, i){ return { ev:ev, i:i }; })
+        .sort(function(a, b){ return (new Date(a.ev.date) - new Date(b.ev.date)) || (a.i - b.i); });
+      const last = evs.length && evs[evs.length - 1].ev;
+      if (!last) continue;
+      const c = last.competitions[0];
+      if (!c.status.type.completed) continue;
+      const t = c.competitors.reduce(function(sum, x){ return sum + Number(x.score || 0); }, 0);
+      await put(P("tbres." + wk), t);
+    } catch (e) { /* try again next load */ }
+  }
+}
 let REPAIRING = false;
 async function repairArchive() {
   if (S.demo || !S.ok || !S.lg || REPAIRING) return;
@@ -1226,71 +1269,205 @@ function incoming() {
     .sort(function(a,b){ return (a.at||0) - (b.at||0); });
 }
 
-window.openThrow = function(){ S.throwing = true; render(); };
-window.closeThrow = function(){ S.throwing = false; render(); };
-window.throwPoop = async function(target){
+window.openThrow = function(){ S.throwing = true; S.throwTarget = null; S.throwMsg = ""; render(); };
+window.closeThrow = function(){ S.throwing = false; S.throwTarget = null; render(); };
+window.aimThrow = function(id){ S.throwTarget = id; render(); setTimeout(function(){ const t = document.getElementById("throwmsg"); if (t) t.focus(); }, 60); };
+window.typeThrow = function(v){ S.throwMsg = String(v || "").slice(0, 140); const c = document.getElementById("throwcount"); if (c) c.textContent = (140 - S.throwMsg.length); };
+window.throwPoop = async function(){
+  const target = S.throwTarget;
   const ammo = ammoLeft();
-  if (!ammo.length || target === S.me) return;
+  if (!target || !ammo.length || target === S.me) return;
   const wk = ammo[0];
   const key = wk + "-" + S.me;
-  await put(P("throws." + target + "." + key), { from:S.me, wk:wk, at:Date.now() });
+  const msg = String(S.throwMsg || "").replace(/\s+/g, " ").trim().slice(0, 140);
+  const ok = await put(P("throws." + target + "." + key), { from:S.me, wk:wk, at:Date.now(), msg:msg });
+  if (!ok) return;
   await put(P("ammo." + wk + "." + S.me), true);
-  S.throwing = false;
-  say("Launched at " + (M(target) ? M(target).short : target));
-  render();
+  S.throwing = false; S.throwTarget = null; S.throwMsg = "";
+  S.launch = target; render();
+  setTimeout(function(){ S.launch = null; render(); }, 1700);
 };
 window.clearSplat = async function(){
   const hits = S.splat || incoming();
-  S.splat = null; S.splatSeen = true;
+  S.wiping = true; render();
+  await new Promise(function(r){ setTimeout(r, 520); });
+  S.splat = null; S.splatSeen = true; S.wiping = false; S.splatDone = false;
   render();
   for (const h of hits) { await put(P("throws." + S.me + "." + h.key), null); }
 };
+
+// tiny seeded random so a splatter keeps its shape across redraws
+function rng(seed) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return function(){ h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+// A procedural splatter: lumpy core, tapered streaks flung outward, droplets, and drips.
+function splatSvg(seed, size) {
+  const R = rng(seed), C = 100;
+  // smooth lumpy core
+  const n = 30, base = [];
+  for (let i = 0; i < n; i++) base.push(30 + R() * 14);
+  const pts = base.map(function(_, i){
+    const r = (base[(i + n - 1) % n] + base[i] * 2 + base[(i + 1) % n]) / 4;
+    const a = (i / n) * Math.PI * 2;
+    return [C + Math.cos(a) * r, C + Math.sin(a) * r];
+  });
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const q = pts[(i + 1) % n], q2 = pts[(i + 2) % n];
+    if (i === 0) d += "M" + ((pts[0][0] + q[0]) / 2).toFixed(1) + " " + ((pts[0][1] + q[1]) / 2).toFixed(1);
+    d += " Q" + q[0].toFixed(1) + " " + q[1].toFixed(1) + " " + ((q[0] + q2[0]) / 2).toFixed(1) + " " + ((q[1] + q2[1]) / 2).toFixed(1);
+  }
+  // streaks: tapered teardrops pointing away from the center
+  const streaks = [], drops = [];
+  const ns = 7 + Math.floor(R() * 4);
+  for (let i = 0; i < ns; i++) {
+    const a = (i / ns) * Math.PI * 2 + (R() - .5) * .5;
+    const len = 44 + R() * 52, w = 5 + R() * 10;
+    const ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
+    const x0 = C + ca * 26, y0 = C + sa * 26, x1 = C + ca * len, y1 = C + sa * len;
+    streaks.push('<path d="M'+(x0 + px * w).toFixed(1)+' '+(y0 + py * w).toFixed(1)+
+      ' Q'+(C + ca * len * .7 + px * w * .45).toFixed(1)+' '+(C + sa * len * .7 + py * w * .45).toFixed(1)+' '+x1.toFixed(1)+' '+y1.toFixed(1)+
+      ' Q'+(C + ca * len * .7 - px * w * .45).toFixed(1)+' '+(C + sa * len * .7 - py * w * .45).toFixed(1)+' '+(x0 - px * w).toFixed(1)+' '+(y0 - py * w).toFixed(1)+' Z" />');
+    streaks.push('<circle cx="'+x1.toFixed(1)+'" cy="'+y1.toFixed(1)+'" r="'+(w * .42).toFixed(1)+'" />');
+    const tip = len + 7 + R() * 12, r = 2 + R() * 3.5;
+    drops.push([C + ca * tip, C + sa * tip, r, a, tip]);
+    if (R() < .6) { const mid = len + 20 + R() * 14; drops.push([C + ca * mid, C + sa * mid, 1.2 + R() * 2, a, mid]); }
+  }
+  for (let i = 0; i < 14; i++) {
+    const a = R() * Math.PI * 2, dist = 50 + R() * 50;
+    drops.push([C + Math.cos(a) * dist, C + Math.sin(a) * dist, 1.5 + R() * 4.5, a, dist]);
+  }
+  const dropSvg = drops.map(function(x){
+    return '<circle class="spd" cx="'+x[0].toFixed(1)+'" cy="'+x[1].toFixed(1)+'" r="'+x[2].toFixed(1)+
+      '" style="--dx:'+(-Math.cos(x[3]) * x[4] * .75).toFixed(1)+'px;--dy:'+(-Math.sin(x[3]) * x[4] * .75).toFixed(1)+'px" />';
+  }).join("");
+  const drips = [];
+  for (let i = 0; i < 4; i++) {
+    const x = C - 24 + R() * 48, w = 5 + R() * 6, h = 24 + R() * 50, y = C + 18;
+    drips.push('<g class="sdrip" style="animation-delay:calc(var(--d,0ms) + '+(700 + R() * 600).toFixed(0)+'ms);animation-duration:'+(1600 + R() * 1400).toFixed(0)+'ms">'+
+      '<rect x="'+(x - w / 2).toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="'+(w / 2).toFixed(1)+'" />'+
+      '<circle cx="'+x.toFixed(1)+'" cy="'+(y + h).toFixed(1)+'" r="'+(w * .8).toFixed(1)+'" /></g>');
+  }
+  const id = "sp" + seed.replace(/[^a-z0-9]/gi, "");
+  return '<svg class="splatsvg" viewBox="0 0 200 230" width="'+size+'" height="'+Math.round(size * 1.15)+'" aria-hidden="true">'+
+    '<defs><radialGradient id="'+id+'" gradientUnits="userSpaceOnUse" cx="86" cy="82" r="120">'+
+      '<stop offset="0" stop-color="#8A5A2B"/><stop offset=".5" stop-color="#5C3412"/><stop offset="1" stop-color="#2E1806"/></radialGradient></defs>'+
+    '<g fill="url(#'+id+')">'+
+      '<g class="sdrips">'+drips.join("")+'</g>'+streaks.join("")+
+      '<path d="'+d+' Z" />'+dropSvg+
+    '</g>'+
+    '<ellipse class="sgloss" cx="88" cy="86" rx="14" ry="7" transform="rotate(-28 88 86)" />'+
+    '<ellipse class="sgloss" cx="112" cy="104" rx="5" ry="3" transform="rotate(-28 112 104)" />'+
+  '</svg>';
+}
 
 function splatOverlay() {
   const hits = S.splat || [];
   if (!hits.length) return "";
   const who = hits.map(function(h){ const m = M(h.from); return m ? esc(m.short) : h.from; });
   const names = who.length === 1 ? who[0] : who.slice(0,-1).join(", ") + " and " + who[who.length-1];
-  const blobs = hits.slice(0, 6).map(function(h, i){
-    const left = 12 + (i * 71) % 70, top = 14 + (i * 37) % 58, rot = (i * 47) % 60 - 30;
-    return '<span class="splatblob" style="left:'+left+'%;top:'+top+'%;--rot:'+rot+'deg;animation-delay:'+(i*90)+'ms">💩</span>';
+  const spots = [[50,40],[18,74],[82,16],[80,82],[16,18],[52,88]];
+  const splats = hits.slice(0, 6).map(function(h, i){
+    const sp = spots[i], R = rng(h.key + "pos");
+    const rot = (R() * 70 - 35).toFixed(0), size = i === 0 ? 470 : 260 + Math.round(R() * 90);
+    const delay = i * 380;
+    return '<div class="splathit" style="left:'+sp[0]+'%;top:'+sp[1]+'%;--rot:'+rot+'deg;--d:'+delay+'ms">'+
+      '<span class="splatpoo">💩</span>'+
+      '<div class="splatmark">'+splatSvg(h.key, size)+'</div></div>';
   }).join("");
-  return '<div class="splat" onclick="clearSplat()">'+blobs+
+  const notes = hits.map(function(h){
+    const m = M(h.from);
+    return h.msg ? '<div class="sp-note">'+(m ? crest(m, 26) : "")+
+      '<div><b>'+(m ? esc(m.short) : esc(h.from))+'</b><p>'+esc(h.msg)+'</p></div></div>' : "";
+  }).join("");
+  const impact = 520 + (Math.min(hits.length, 6) - 1) * 380;
+  if (!S.splatDone) setTimeout(function(){ S.splatDone = true; }, impact + 2600);
+  return '<div class="splat'+(S.splatDone ? " settled" : "")+(S.wiping ? " wiping" : "")+'" style="--impact:'+impact+'ms">'+
+    '<div class="splatshake">'+splats+'</div>'+
     '<div class="splatcard">'+
-      '<div class="sp-tag">INCOMING</div>'+
+      '<div class="sp-tag">DIRECT HIT</div>'+
       '<div class="sp-line">'+names+' hit you with '+(hits.length>1?hits.length+" of these":"one of these")+'</div>'+
+      notes+
       '<div class="sp-sub">Win a week and you can throw one back.</div>'+
       '<button class="btn" style="margin-top:14px" onclick="clearSplat()">Wipe it off</button>'+
     '</div></div>';
 }
 
+function launchOverlay() {
+  const m = M(S.launch);
+  return '<div class="launch"><span class="launchpoo">💩</span>'+
+    '<div class="launchtxt">Direct hit on '+(m ? esc(m.short) : "them")+'</div></div>';
+}
+
 function throwSheet(me) {
   const ammo = ammoLeft();
+  const t = S.throwTarget && M(S.throwTarget);
+  const head = '<div style="width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px"></div>';
+  if (t) {
+    return '<div class="veil" onclick="closeThrow()"><div class="sheet" onclick="event.stopPropagation()">'+head+
+      '<div style="display:flex;align-items:center;gap:10px">'+crest(t,36)+
+        '<div style="flex:1"><div style="font-size:20px;font-weight:800">Loading one for '+esc(t.short)+'</div>'+
+        '<div style="font-size:12.5px;color:var(--muted);margin-top:2px">Say something. They see it when it lands.</div></div></div>'+
+      '<textarea id="throwmsg" class="throwmsg" maxlength="140" rows="3" placeholder="Write your message" '+
+        'oninput="typeThrow(this.value)">'+esc(S.throwMsg || "")+'</textarea>'+
+      '<div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px"><span id="throwcount">'+(140 - (S.throwMsg || "").length)+'</span> left</div>'+
+      '<button class="btn go" style="margin-top:10px" onclick="throwPoop()">💩 Launch it</button>'+
+      '<button class="btn" style="margin-top:8px;background:transparent;border:1px solid var(--line);color:var(--muted)" onclick="aimThrow(null)">Pick someone else</button>'+
+    '</div></div>';
+  }
   const targets = ROSTER().filter(function(m){ return m.id !== me.id; });
-  return '<div class="veil" onclick="closeThrow()"><div class="sheet" onclick="event.stopPropagation()">'+
-    '<div style="width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px"></div>'+
+  return '<div class="veil" onclick="closeThrow()"><div class="sheet" onclick="event.stopPropagation()">'+head+
     '<div style="font-size:20px;font-weight:800">Pick a target</div>'+
     '<div style="font-size:12.5px;color:var(--muted);margin-top:4px">'+
       'You have '+ammo.length+' throw'+(ammo.length===1?"":"s")+' banked. One per week won.</div>'+
     '<div style="margin-top:14px">'+targets.map(function(m){
       return '<button class="row" style="width:100%;background:none;border:none;text-align:left" '+
-        'onclick="throwPoop(\''+m.id+'\')">'+crest(m,30)+
+        'onclick="aimThrow(\''+m.id+'\')">'+crest(m,30)+
         '<div style="flex:1;font-weight:700">'+esc(m.short)+'</div><span style="font-size:20px">💩</span></button>';
     }).join("")+'</div>'+
     '<button class="btn" style="margin-top:14px;background:transparent;border:1px solid var(--line);color:var(--muted)" onclick="closeThrow()">Not yet</button>'+
   '</div></div>';
 }
 
+// Total points in a week's tiebreaker game (the last kickoff of the week).
+function tbTotal(wk) {
+  const t = (LGS().tbres || {})[wk];
+  if (typeof t === "number") return t;
+  if (wk === S.weekKey) return tbActual();
+  return null;
+}
+// The one player who owns a week: most points, then closest tiebreaker guess,
+// then whoever hit their mortal lock, then alphabetical as a last resort.
+function weekChamp(wk) {
+  const tied = weekWinners(wk);
+  if (tied.length <= 1) return tied[0] || null;
+  const total = tbTotal(wk);
+  const guesses = (LGS().tb || {})[wk] || {};
+  const locks = (LGS().mlock || {})[wk] || {};
+  const res = (LGS().res || {})[wk] || {};
+  const picks = (LGS().picks || {})[wk] || {};
+  const off = function(id){
+    const g = guesses[id];
+    return (total == null || typeof g !== "number") ? Infinity : Math.abs(g - total);
+  };
+  const lockHit = function(id){
+    const gid = locks[id], r = gid && res[gid];
+    return r && picks[id] && r.ats === picks[id][gid] ? 1 : 0;
+  };
+  return tied.slice().sort(function(a, b){
+    return off(a) - off(b) || lockHit(b) - lockHit(a) ||
+      ((M(a) || {}).short || a).localeCompare((M(b) || {}).short || b);
+  })[0];
+}
 function crownHolders() {
   const weeks = completedWeeks();
   if (!weeks.length) return {};
-  const year = S.weekKey.split("-")[1] || "";
-  const thisWeek = "w" + S.weekNum + "-" + year;
-  const liveDone = S.games.length && S.games.every(graded);
-  if (!weeks.length) return {};
-  const last = weeks[weeks.length - 1];
+  const champ = weekChamp(weeks[weeks.length - 1]);
   const out = {};
-  weekWinners(last).forEach(function(id){ out[id] = true; });
+  if (champ) out[champ] = true;
   return out;
 }
 
@@ -1436,7 +1613,7 @@ function render() {
     ? '<button class="throwbar" onclick="openThrow()"><span>💩</span>You won a week. Throw it at somebody.'+
       (ammo.length>1?' <b>'+ammo.length+' banked</b>':'')+'</button>'
     : "";
-  S.paint = head + throwBar + body + (S.splat ? splatOverlay() : "") + (S.throwing ? throwSheet(me) : "") + (S.booking ? bookSheet(me) : "") + (S.taking ? takeSheet(me) : "") + (S.toast ? '<div class="toast">'+esc(S.toast)+'</div>' : "") + (S.sheet ? sheet(me) : "");
+  S.paint = head + throwBar + body + (S.splat ? splatOverlay() : "") + (S.launch ? launchOverlay() : "") + (S.throwing ? throwSheet(me) : "") + (S.booking ? bookSheet(me) : "") + (S.taking ? takeSheet(me) : "") + (S.toast ? '<div class="toast">'+esc(S.toast)+'</div>' : "") + (S.sheet ? sheet(me) : "");
   $(S.paint);
   if (S.tab === "picks" || S.tab === "surv") sizeRings(S.justPicked);
   S.justPicked = null;
@@ -2070,6 +2247,9 @@ window.setLock = async function(gid){
   const gg = S.games.find(function(x){ return x.id === gid; });
   if (gg && pickLocked(gg)) return;
   const cur = mlockOf(S.me);
+  // once your lock game kicks off, the lock is set for the week: no moving it, no dropping it
+  const curG = cur && S.games.find(function(x){ return x.id === cur; });
+  if (curG && pickLocked(curG)) return say("Your lock already kicked off");
   await put(P("mlock."+S.weekKey+"."+S.me), cur === gid ? null : gid);
   render();
 };
@@ -2230,6 +2410,10 @@ window.claimInvite = async function() {
 /* ============ SEASON ARCHIVE AND STATS ============ */
 async function archive() {
   if (S.demo) return;
+  const tbt = tbActual();
+  if (tbt != null && tbGame() && graded(tbGame()) && (LGS().tbres || {})[S.weekKey] !== tbt) {
+    await put(P("tbres." + S.weekKey), tbt);
+  }
   const have = (LGS().res || {})[S.weekKey] || {};
   for (const g of S.games) {
     const r = graded(g);
@@ -2329,7 +2513,7 @@ window.setCmp = function(id){ S.cmp = (id && S.cmp === id) ? "" : id; render(); 
   await archive();
   S.ready = true;
   render();
-  repairArchive().then(render);
+  restoreLocks().then(restorePushes).then(repairArchive).then(fillTbTotals).then(function(){ S.champs = null; render(); });
   // the board syncs often, ESPN gets left alone unless a game is running
   let lastGames = Date.now();
   let lastSig = "";
