@@ -7,7 +7,7 @@ const LEAGUES = {
     theme:{ page:"#E7EFEC", sand:"#EFE4CE", panel:"#FDFCF7", ink:"#0F3B44", blue:"#1C7C8C",
             gold:"#EE8A3C", muted:"#65807F", line:"#D6DFD9", win:"#177E63", loss:"#C4523F",
             crest:"#0F3B44" },
-    features:{ trophy:true, history:true, stats:true, ledger:true, market:{ max:200, min:5 }, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word", tone:"gold" },
+    features:{ trophy:true, history:true, stats:true, ledger:true, lore:true, sass:true, wendell:true, blast:"chandni", badge:"word", tone:"gold" },
     copy:{ empty:"Nobody has picked yet. Drop the link in the GroupMe and watch who moves first.",
            missing:"Is this man alive?",
            missingSub:" not touched the card.",
@@ -34,7 +34,7 @@ const LEAGUES = {
     theme:{ page:"#F3EEE4", sand:"#EDE5D6", panel:"#FFFFFF", ink:"#3A1620", blue:"#782F40",
             gold:"#CEB888", muted:"#7A6B66", line:"#E0D6C6", win:"#2E6B54", loss:"#A8342C",
             crest:"#782F40" },
-    features:{ trophy:true, ledger:false, lore:false, sass:false, wendell:false, blast:"photo", badge:"word", tone:"garnet", market:{ max:200, min:5 },
+    features:{ trophy:true, ledger:false, lore:false, sass:false, wendell:false, blast:"photo", badge:"word", tone:"garnet",
                period:{ length:6, buyIn:100 } },
     copy:{ empty:"Nobody has picked yet. Send the link around.",
            missing:"Still out",
@@ -230,7 +230,7 @@ const CHANDNI_IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgG
 
 /* ============ STATE ============ */
 const S = { lg:localStorage.getItem("lg")||null, me:null, tab:"picks", view:"season", state:{},
-            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, raw:[], booking:false, bookGame:null, bookSide:null, taking:null, armed:false, champs:null, splat:null, splatSeen:false, throwing:false, back:0, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], justPicked:null, paint:"", cmp:"", join:null, lastInvite:"", copied:"",
+            games:[], weekLabel:"", weekKey:"w0", weekNum:1, ready:false, ok:true, why:"", auth:null, raw:[], champs:null, splat:null, splatSeen:false, throwing:false, back:0, renaming:false, demo:false, peek:false, sched:null, schedFor:"", schedWeeks:[], justPicked:null, paint:"", cmp:"", join:null, lastInvite:"", copied:"",
             toast:"", sheet:false };
 const $ = h => { document.getElementById("app").innerHTML = h; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -483,6 +483,22 @@ function weeksWonTally() {
   });
   return out;
 }
+// Final standings of one period, once its last week is in the books.
+function periodResult(idx) {
+  const len = (FEAT().period && FEAT().period.length) || 6;
+  const year = S.weekKey.split("-")[1] || "";
+  const first = idx * len + 1, lastWeek = first + len - 1;
+  if (lastWeek > S.weekNum || !weekIsOver("w" + lastWeek + "-" + year)) return null;
+  let best = 0; const totals = {};
+  ROSTER().forEach(function(m){
+    let sum = 0;
+    for (let w = first; w <= lastWeek; w++) sum += pointsInWeek(m.id, "w" + w + "-" + year);
+    totals[m.id] = sum; if (sum > best) best = sum;
+  });
+  if (!best) return null;
+  const winners = Object.keys(totals).filter(function(id){ return totals[id] === best; });
+  return { num: idx + 1, first: first, last: lastWeek, best: best, winners: winners };
+}
 function periodsWonTally() {
   const len = (FEAT().period && FEAT().period.length) || 6;
   const year = S.weekKey.split("-")[1] || "";
@@ -510,128 +526,6 @@ function periodsWonTally() {
   return out;
 }
 
-// ---------- the book ----------
-const bets = () => LGS().market || {};
-const settlements = () => LGS().settle || {};
-const betOn = id => bets()[id] || null;
-
-function betResult(b) {
-  const r = ((LGS().res || {})[b.wk] || {})[b.gid];
-  if (!r) return null;
-  if (r.ats === "PUSH") return { push:true };
-  return { win: r.ats === b.team };
-}
-function openBids() {
-  return Object.keys(bets()).map(function(id){ return Object.assign({ id:id }, bets()[id]); })
-    .filter(function(b){
-      if (b.taker) return false;
-      const g = S.games.find(function(x){ return x.id === b.gid; });
-      return g && !kicked(g);
-    })
-    .sort(function(a,b){ return (b.at||0) - (a.at||0); });
-}
-function myBets() {
-  return Object.keys(bets()).map(function(id){ return Object.assign({ id:id }, bets()[id]); })
-    .filter(function(b){ return b.taker && (b.by === S.me || b.taker === S.me); })
-    .sort(function(a,b){ return (b.takenAt||0) - (a.takenAt||0); });
-}
-function ledgerPairs() {
-  const done = {};
-  Object.keys(settlements()).forEach(function(sid){
-    const st = settlements()[sid];
-    if (st && st.confirmed) (st.bets || []).forEach(function(bid){ done[bid] = true; });
-  });
-  const net = {};
-  Object.keys(bets()).forEach(function(id){
-    const b = bets()[id];
-    if (!b.taker || done[id]) return;
-    const r = betResult(b);
-    if (!r || r.push) return;
-    const winner = r.win ? b.by : b.taker;
-    const loser  = r.win ? b.taker : b.by;
-    if (winner !== S.me && loser !== S.me) return;
-    const other = winner === S.me ? loser : winner;
-    if (!net[other]) net[other] = { amt:0, bets:[] };
-    net[other].amt += (winner === S.me ? b.stake : -b.stake);
-    net[other].bets.push(id);
-  });
-  return net;
-}
-function pendingSettles() {
-  return Object.keys(settlements()).map(function(id){ return Object.assign({ id:id }, settlements()[id]); })
-    .filter(function(st){ return !st.confirmed && (st.from === S.me || st.to === S.me); });
-}
-
-window.openBook = function(){ S.booking = true; S.bookGame = null; S.bookSide = null; render(); };
-window.closeBook = function(){ S.booking = false; render(); };
-window.pickBookGame = function(gid){ S.bookGame = gid; S.bookSide = null; render(); };
-window.pickBookSide = function(team){ S.bookSide = team; render(); };
-window.postBid = async function(){
-  const g = S.games.find(function(x){ return x.id === S.bookGame; });
-  if (!g || !S.bookSide || kicked(g)) return;
-  const cfg = FEAT().market;
-  const el = document.getElementById("stake");
-  let stake = Math.round(Number((el && el.value) || 0));
-  if (!stake || stake < cfg.min) return say("Minimum is $" + cfg.min);
-  if (stake > cfg.max) stake = cfg.max;
-  const id = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  await put(P("market." + id), { by:S.me, gid:g.id, team:S.bookSide, stake:stake, wk:S.weekKey, at:Date.now() });
-  S.booking = false;
-  say("Posted. The line floats until someone takes it.");
-  render();
-};
-window.pullBid = async function(id){
-  const b = betOn(id);
-  if (!b || b.by !== S.me || b.taker) return;
-  await put(P("market." + id), null);
-  say("Pulled");
-  render();
-};
-window.confirmTake = function(id){ S.taking = id; S.armed = false; render(); };
-window.cancelTake = function(){ S.taking = null; S.armed = false; render(); };
-window.armTake = function(){ S.armed = true; render(); };
-window.takeBid = async function(id){
-  if (!S.armed) return;                                   // first tap only arms it
-  const b = betOn(id);
-  if (!b || b.by === S.me) { S.taking = null; S.armed = false; return; }
-  const g = S.games.find(function(x){ return x.id === b.gid; });
-  if (!g || kicked(g)) { S.taking = null; render(); return say("That game already kicked"); }
-  await loadState();
-  const fresh = betOn(id);
-  if (!fresh || fresh.taker) { S.taking = null; render(); return say("Just taken by someone else"); }
-  const fav = g.fav === b.team;
-  await put(P("market." + id), Object.assign({}, fresh, {
-    taker:S.me, takenAt:Date.now(), line:g.line, fav:fav, home:g.home, away:g.away
-  }));
-  await loadState();
-  const after = betOn(id);
-  if (!after || after.taker !== S.me) { S.taking = null; render(); return say("Just taken by someone else"); }
-  S.taking = null; S.armed = false;
-  say("Locked at " + (g.line == null ? "no line" : (fav ? "-" : "+") + g.line));
-  render();
-};
-window.markPaid = async function(other){
-  const net = ledgerPairs()[other];
-  if (!net || net.amt >= 0) return;
-  const id = "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  await put(P("settle." + id), { from:S.me, to:other, amount:Math.abs(net.amt), bets:net.bets,
-    at:Date.now(), confirmed:false });
-  say("Marked as paid. They confirm on their end.");
-  render();
-};
-window.confirmSettle = async function(sid){
-  const st = settlements()[sid];
-  if (!st || st.to !== S.me) return;
-  await put(P("settle." + sid + ".confirmed"), true);
-  say("Squared up");
-  render();
-};
-window.rejectSettle = async function(sid){
-  const st = settlements()[sid];
-  if (!st || st.to !== S.me) return;
-  await put(P("settle." + sid), null);
-  render();
-};
 
 function combinedSeason(me) {
   const cfg = FEAT().period;
@@ -680,13 +574,19 @@ function combinedSeason(me) {
       '<div class="gcell szn">'+r.szn+'</div>';
   }).join("");
 
+  const prev = pd.idx > 0 ? periodResult(pd.idx - 1) : null;
+  const prevLine = prev ? '<div class="per-prev">Period '+prev.num+' went to '+
+    prev.winners.map(function(id){ return esc((M(id) || {}).short || id); }).join(" and ")+
+    ' with '+prev.best+(prev.winners.length > 1 ? ', split pot' : '')+'</div>' : "";
+  const fresh = pd.idx > 0 && S.weekNum === pd.first && !(LGS().res || {})[S.weekKey];
   return '<div class="percard">'+
-      '<div class="per-tag">PERIOD '+pd.num+' · WEEKS '+pd.first+' TO '+pd.last+'</div>'+
+      '<div class="per-tag">PERIOD '+pd.num+' · WEEKS '+pd.first+' TO '+pd.last+(fresh ? ' · FRESH START' : '')+'</div>'+
       '<div class="per-pot">$'+pot+'<span>on the line, $'+cfg.buyIn+' a man</span></div>'+
       '<div class="per-line">'+(closed
         ? esc(rows[0].m.short)+' takes it with '+best
+        : best === 0 ? 'Everyone starts at zero. '+pd.weeks.length+' weeks to play'
         : esc(rows[0].m.short)+' leads with '+best+', '+Math.max(pd.last - S.weekNum, 0)+
-          ' week'+((pd.last - S.weekNum)===1?'':'s')+' to play')+'</div></div>'+
+          ' week'+((pd.last - S.weekNum)===1?'':'s')+' to play')+'</div>'+prevLine+'</div>'+
     '<div class="gridwrap"><div class="grid" style="grid-template-columns:132px repeat('+
       pd.weeks.length+',minmax(30px,1fr)) 44px 44px">'+head+body+'</div></div>'+
     '<div class="note">POT is this six week period, the money column. SZN is the whole season. '+
@@ -737,179 +637,6 @@ function seasonView(me) {
     '<div class="note">Points across every finished week. Mortal locks count double.</div>';
 }
 
-function bookView(me) {
-  const cfg = FEAT().market;
-  const open = openBids();
-  const mine = myBets();
-  const net = ledgerPairs();
-  const pend = pendingSettles();
-  const others = Object.keys(net).filter(function(k){ return net[k].amt !== 0; });
-
-  const owedRows = others.map(function(id){
-    const m = M(id); if (!m) return "";
-    const amt = net[id].amt;
-    const up = amt > 0;
-    return '<div class="bkline">'+crest(m,28)+
-      '<span class="bk-who">'+esc(m.short)+'</span>'+
-      '<span class="bk-amt '+(up?"up":"down")+'">'+(up?"+":"-")+'$'+Math.abs(amt)+'</span>'+
-      (up ? '<span class="bk-note">owes you</span>'
-          : '<button class="bk-settle" onclick="markPaid(\''+id+'\')">I paid</button>')+
-    '</div>';
-  }).join("");
-
-  const pendRows = pend.map(function(st){
-    const other = st.from === me.id ? st.to : st.from;
-    const m = M(other); if (!m) return "";
-    if (st.to === me.id) {
-      return '<div class="bkclaim">'+crest(m,26)+
-        '<span>'+esc(m.short)+' says they sent <b>$'+st.amount+'</b></span>'+
-        '<button class="bk-settle" onclick="confirmSettle(\''+st.id+'\')">Got it</button>'+
-        '<button class="bk-x" onclick="rejectSettle(\''+st.id+'\')">No</button></div>';
-    }
-    return '<div class="bkclaim waiting">'+crest(m,26)+
-      '<span>Waiting on '+esc(m.short)+' to confirm <b>$'+st.amount+'</b></span></div>';
-  }).join("");
-
-  const board = open.length ? open.map(function(b){
-    const g = S.games.find(function(x){ return x.id === b.gid; });
-    const m = M(b.by); if (!g || !m) return "";
-    const theirFav = g.fav === b.team;
-    const other = b.team === g.home ? g.away : g.home;
-    const theirPrice = g.line == null ? "no line" : (theirFav ? "-" : "+") + g.line;
-    const yourPrice  = g.line == null ? "no line" : (theirFav ? "+" : "-") + g.line;
-    const isMine = b.by === me.id;
-    return '<div class="bkcard">'+
-      '<div class="bk-top">'+crest(m,24)+
-        '<span class="bk-by">'+esc(m.short)+' wants <b style="color:'+col(b.team)+'">'+b.team+' '+theirPrice+'</b></span>'+
-        '<span class="bk-stake">$'+b.stake+'</span></div>'+
-      (isMine
-        ? '<div class="bk-mine">Your bid. '+other+' '+yourPrice+' is what someone else would be taking.</div>'+
-          '<div class="bk-vs">'+g.away+' at '+g.home+' · '+kickText(g.kick)+'</div>'+
-          '<button class="bk-pull" onclick="pullBid(\''+b.id+'\')">Pull it</button>'
-        : '<div class="bk-you"><span class="bk-youtag">YOU WOULD GET</span>'+
-            '<div class="bk-mid">'+
-              '<img src="'+logo(other)+'" onerror="this.style.display=\'none\'" />'+
-              '<span class="bk-team" style="color:'+col(other)+'">'+other+'</span>'+
-              '<span class="bk-line">'+yourPrice+'</span></div>'+
-          '</div>'+
-          '<div class="bk-vs">'+g.away+' at '+g.home+' · '+kickText(g.kick)+'</div>'+
-          '<button class="bk-take" onclick="confirmTake(\''+b.id+'\')">Take '+other+' for $'+b.stake+'</button>')+
-    '</div>';
-  }).join("") : '<div class="note" style="padding:18px">Nothing on the board. Post one and see who bites.</div>';
-
-  const settledCount = Object.keys(settlements()).filter(function(id){ return settlements()[id].confirmed; }).length;
-  const mineRows = mine.length ? mine.map(function(b){
-    const opp = b.by === me.id ? M(b.taker) : M(b.by);
-    const r = betResult(b);
-    const iTookIt = b.taker === me.id;
-    const myTeam = iTookIt ? (b.team === b.home ? b.away : b.home) : b.team;
-    const state = !r ? "live" : r.push ? "push"
-      : ((r.win && !iTookIt) || (!r.win && iTookIt)) ? "won" : "lost";
-    const priced = b.line == null ? "" : ((iTookIt ? !b.fav : b.fav) ? "-" : "+") + b.line;
-    return '<div class="bkrow '+state+'">'+
-      '<img src="'+logo(myTeam)+'" onerror="this.style.display=\'none\'" />'+
-      '<span class="bkr-team">'+myTeam+' '+priced+'</span>'+
-      '<span class="bkr-who">vs '+(opp?esc(opp.short):"?")+'</span>'+
-      '<span class="bkr-amt">$'+b.stake+'</span>'+
-      '<span class="bkr-state">'+(state==="live"?"LIVE":state.toUpperCase())+'</span></div>';
-  }).join("") : '<div class="note" style="padding:14px">No action yet this season.</div>';
-
-  // every accepted bid this week between two other players, so everyone can sweat along
-  const feed = Object.keys(bets()).map(function(id){ return Object.assign({ id:id }, bets()[id]); })
-    .filter(function(b){ return b.taker && b.wk === S.weekKey && b.by !== me.id && b.taker !== me.id; })
-    .sort(function(a,b){ return (b.takenAt||0) - (a.takenAt||0); });
-  const side = function(m, team, fav, line){
-    return '<div class="bkf-side">'+crest(m,22)+
-      '<span class="bkf-name">'+esc(m.short)+'</span>'+
-      '<span class="bkf-team" style="color:'+col(team)+'">'+team+
-        (line == null ? "" : ' '+(fav?"-":"+")+line)+'</span></div>';
-  };
-  const feedRows = feed.map(function(b){
-    const a = M(b.by), t = M(b.taker); if (!a || !t) return "";
-    const other = b.team === b.home ? b.away : b.home;
-    const g = S.games.find(function(x){ return x.id === b.gid; });
-    const r = betResult(b);
-    const winner = r && !r.push ? (r.win ? a : t) : null;
-    const tag = r ? (r.push ? "PUSH" : esc(winner.short).toUpperCase() + " WINS")
-      : (g && kicked(g) ? "LIVE" : "BOOKED");
-    const cls = r ? (r.push ? "push" : "done") : (g && kicked(g) ? "live" : "");
-    return '<div class="bkfeed '+cls+'">'+
-      side(a, b.team, b.fav, b.line)+
-      '<div class="bkf-mid"><b>$'+b.stake+'</b><i>'+tag+'</i></div>'+
-      side(t, other, !b.fav, b.line)+'</div>';
-  }).join("");
-
-  return '<div class="bkhead"><b>Marketplace</b><span>Post a side, someone takes it, the app keeps score</span></div>'+
-    (others.length || pend.length ? '<div class="card" style="padding:12px 14px;margin-bottom:11px">'+
-      '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">SQUARING UP</div>'+
-      owedRows + pendRows + '</div>' : "")+
-    '<button class="bk-post" onclick="openBook()">Post a bid</button>'+
-    '<div class="bklabel">ON THE BOARD</div>'+ board +
-    '<div class="bklabel">YOUR ACTION</div>'+ mineRows +
-    (feedRows ? '<div class="bklabel">AROUND THE LEAGUE</div>'+ feedRows : "")+
-    '<div class="note">The line floats while a bid sits open and locks the moment someone takes it. '+
-    'Max $'+cfg.max+'. Nobody holds money, the app just keeps the tally.</div>';
-}
-
-function bookSheet(me) {
-  const cfg = FEAT().market;
-  const live = S.games.filter(function(g){ return !kicked(g); });
-  const g = S.games.find(function(x){ return x.id === S.bookGame; });
-  return '<div class="veil" onclick="closeBook()"><div class="sheet" onclick="event.stopPropagation()">'+
-    '<div style="width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px"></div>'+
-    '<div style="font-size:20px;font-weight:800">Post a bid</div>'+
-    '<div class="bklabel" style="padding-top:12px">GAME</div>'+
-    '<div class="bkpick">'+ (live.length ? live.map(function(x){
-      return '<button class="bkg'+(x.id===S.bookGame?" on":"")+'" onclick="pickBookGame(\''+x.id+'\')">'+
-        x.away+' at '+x.home+'<i>'+kickText(x.kick)+'</i></button>';
-    }).join("") : '<div class="note">Nothing left to bet this week.</div>')+'</div>'+
-    (g ? '<div class="bklabel">THE SIDE YOU WANT</div>'+
-      '<div style="font-size:11.5px;color:var(--muted);padding:0 3px 8px;line-height:1.45">'+
-      'Pick the team you are backing. Whoever takes this bid gets the other side.</div>'+
-      '<div class="bkside">'+[g.away, g.home].map(function(t){
-        const fav = g.fav === t;
-        return '<button class="bks'+(t===S.bookSide?" on":"")+'" style="--c:'+col(t)+'" onclick="pickBookSide(\''+t+'\')">'+
-          '<img src="'+logo(t)+'" onerror="this.style.display=\'none\'" />'+t+
-          '<i>'+(g.line==null?"no line":(fav?"-":"+")+g.line)+'</i></button>';
-      }).join("")+'</div>' : "")+
-    (S.bookSide ? '<div class="bklabel">STAKE</div>'+
-      '<div class="bkstake"><span>$</span><input id="stake" inputmode="numeric" value="25" maxlength="3" /></div>'+
-      '<div style="font-size:11.5px;color:var(--muted);margin-top:7px;line-height:1.45">'+
-      'The line moves with the market until someone takes this. Whatever it is at that moment is what you are both stuck with.</div>'+
-      '<button class="btn go" style="margin-top:14px" onclick="postBid()">Put it on the board</button>' : "")+
-    '<button class="btn" style="margin-top:8px;background:transparent;border:1px solid var(--line);color:var(--muted)" onclick="closeBook()">Cancel</button>'+
-  '</div></div>';
-}
-
-function takeSheet(me) {
-  const b = betOn(S.taking);
-  if (!b) return "";
-  const g = S.games.find(function(x){ return x.id === b.gid; });
-  const poster = M(b.by);
-  if (!g || !poster) return "";
-  const theirs = b.team, mine = b.team === g.home ? g.away : g.home;
-  const myFav = g.fav === mine;
-  const yourPrice = g.line==null ? "no line" : (myFav?"-":"+")+g.line;
-  const theirPrice = g.line==null ? "no line" : (myFav?"+":"-")+g.line;
-  return '<div class="veil" onclick="cancelTake()"><div class="sheet" onclick="event.stopPropagation()">'+
-    '<div style="width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px"></div>'+
-    '<div style="font-size:20px;font-weight:800">You are taking '+mine+'</div>'+
-    '<div class="takebox">'+
-      '<img src="'+logo(mine)+'" onerror="this.style.display=\'none\'" />'+
-      '<div><span class="tb-team">'+mine+' '+yourPrice+'</span>'+
-      '<span class="tb-line">your side</span></div>'+
-      '<span class="tb-amt">$'+b.stake+'</span></div>'+
-    '<div class="takethem">'+crest(poster,22)+
-      '<span>'+esc(poster.short)+' keeps <b>'+theirs+' '+theirPrice+'</b></span></div>'+
-    '<div style="font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.45">'+
-      'Live number right now. Once you lock it there is no undo and no take backs, '+
-      'win or lose you settle up with '+esc(poster.short)+'.</div>'+
-    (S.armed
-      ? '<button class="btn go armed" style="margin-top:14px" onclick="takeBid(\''+S.taking+'\')">Tap again to lock it in</button>'
-      : '<button class="btn" style="margin-top:14px;background:var(--ink);color:#fff" onclick="armTake()">Take '+mine+' '+yourPrice+'</button>')+
-    '<button class="btn" style="margin-top:8px;background:transparent;border:1px solid var(--line);color:var(--muted)" onclick="cancelTake()">Never mind</button>'+
-  '</div></div>';
-}
 
 function periodInfo(n) {
   const len = (FEAT().period && FEAT().period.length) || 6;
@@ -950,8 +677,12 @@ function potential(who) {
   });
   return { now: r.pts, max: r.pts + more, live: more };
 }
+// anyone who has ever made a pick this season is in the pool, picked this week or not
 const inPool  = () => ROSTER().filter(function(m){
-  return Object.keys(picksOf(m.id)).length || survOf(m.id) || survLosses(m.id).lost > 0;
+  if (Object.keys(picksOf(m.id)).length || survOf(m.id)) return true;
+  const surv = LGS().surv || {}, picks = LGS().picks || {};
+  return Object.keys(surv).some(function(wk){ return !!surv[wk][m.id]; }) ||
+         Object.keys(picks).some(function(wk){ return Object.keys(picks[wk][m.id] || {}).length > 0; });
 });
 const kicked  = g => Date.now() >= new Date(g.kick).getTime();
 
@@ -1164,6 +895,17 @@ function survLosses(who) {
     const r = byGame[gid];
     if (r.su !== t && r.su !== "PUSH") { lost++; weeks.push(wk); }
   });
+  // no pick in a finished week counts as a loss, once you are in the pool
+  const joined = Object.keys(surv).filter(function(wk){ return !!surv[wk][who]; })
+    .map(function(wk){ return parseInt(wk.slice(1), 10) || 0; });
+  if (joined.length) {
+    const first = Math.min.apply(null, joined);
+    completedWeeks().forEach(function(wk){
+      const n = parseInt(wk.slice(1), 10) || 0;
+      if (n >= first && !(surv[wk] || {})[who]) { lost++; weeks.push(wk); }
+    });
+  }
+  weeks.sort(function(a, b){ return (parseInt(a.slice(1), 10) || 0) - (parseInt(b.slice(1), 10) || 0); });
   return { lost: lost, weeks: weeks };
 }
 function survHistory(who) {
@@ -1182,6 +924,11 @@ function survHistory(who) {
     const r = byGame[gid];
     out.push({ t:t, wk:(parseInt(wk.slice(1),10)||0), won:(r.su === t || r.su === "PUSH") });
   });
+  survLosses(who).weeks.forEach(function(wk){
+    const n = parseInt(wk.slice(1), 10) || 0;
+    if (!(surv[wk] || {})[who]) out.push({ t:null, wk:n, won:false, missed:true });
+  });
+  out.sort(function(a, b){ return a.wk - b.wk; });
   return out;
 }
 const survStatus = who => {
@@ -1613,7 +1360,7 @@ function render() {
     ? '<button class="throwbar" onclick="openThrow()"><span>💩</span>You won a week. Throw it at somebody.'+
       (ammo.length>1?' <b>'+ammo.length+' banked</b>':'')+'</button>'
     : "";
-  S.paint = head + throwBar + body + (S.splat ? splatOverlay() : "") + (S.launch ? launchOverlay() : "") + (S.throwing ? throwSheet(me) : "") + (S.booking ? bookSheet(me) : "") + (S.taking ? takeSheet(me) : "") + (S.toast ? '<div class="toast">'+esc(S.toast)+'</div>' : "") + (S.sheet ? sheet(me) : "");
+  S.paint = head + throwBar + body + (S.splat ? splatOverlay() : "") + (S.launch ? launchOverlay() : "") + (S.throwing ? throwSheet(me) : "") + (S.toast ? '<div class="toast">'+esc(S.toast)+'</div>' : "") + (S.sheet ? sheet(me) : "");
   $(S.paint);
   if (S.tab === "picks" || S.tab === "surv") sizeRings(S.justPicked);
   S.justPicked = null;
@@ -1790,7 +1537,6 @@ function survView(me) {
 
 function boardView(me) {
   const base = [["season","Season"],["standings","Survivor"],["reveal","Week"]];
-  if (FEAT().market) base.push(["book", "Market"]);
   if (FEAT().stats) base.push(["stats","Stats"]);
   if (FEAT().trophy) base.push(["history","Trophy"]);
   if (FEAT().ledger) base.push(["ledger","Ledger"]);
@@ -1801,7 +1547,6 @@ function boardView(me) {
   if (S.view === "season") body = seasonView(me);
   if (S.view === "standings") body = standings(me);
   if (S.view === "reveal") body = reveal(me);
-  if (S.view === "book" && FEAT().market) body = bookView(me);
   if (S.view === "stats" && FEAT().stats) body = statsView(me);
   if (S.view === "history" && FEAT().trophy) body = trophy();
   if (S.view === "ledger" && FEAT().ledger) body = ledger(me);
@@ -1830,6 +1575,7 @@ function standings(me) {
       : '<span class="sv-team" style="--c:'+col(x.sp)+'">'+
           '<img src="'+logo(x.sp)+'" onerror="this.style.display=\'none\'" />'+x.sp+'</span>';
     const hist = survHistory(x.m.id).map(function(h){
+      if (h.missed) return '<span class="svchip lost miss" title="Week '+h.wk+': no pick">&#8212;</span>';
       return '<span class="svchip '+(h.won?"won":"lost")+'" title="Week '+h.wk+'">'+
         '<img src="'+logo(h.t)+'" onerror="this.style.display=\'none\'" /></span>';
     }).join("");
@@ -1925,11 +1671,7 @@ function reveal(me) {
   const head = '<div class="gcell ghead corner">PLAYER</div>' + open.map(function(g){
     const r = graded(g);
     return '<div class="gcell ghead">'+
-      '<span class="hteams">'+
-        '<img src="'+logo(g.away)+'" alt="'+g.away+'" onerror="this.style.display=\'none\'" />'+
-        '<u>at</u>'+
-        '<img src="'+logo(g.home)+'" alt="'+g.home+'" onerror="this.style.display=\'none\'" />'+
-      '</span>'+
+      '<span class="hteams"><em style="color:'+col(g.away)+'">'+g.away+'</em><u>at</u><em style="color:'+col(g.home)+'">'+g.home+'</em></span>'+
       '<i class="hspread">'+(g.line==null?"—":'<em>'+g.fav+'</em>-'+g.line)+'</i>'+
       (r?'<b>'+(r.ats==="PUSH"?"PUSH":r.ats)+'</b>':'<b class="live">LIVE</b>')+'</div>';
   }).join("");
@@ -1951,7 +1693,7 @@ function reveal(me) {
       const agrees  = cmp && !isCmp && theirs && theirs === p;
       return '<div class="gcell pick'+(right?" right":"")+(wrong?" wrong":"")+(push?" push":"")+
         (differs?" differs":"")+(agrees?" agrees":"")+'" style="'+tint(p)+";--full:"+col(p)+'">'+
-        '<img src="'+logo(p)+'" alt="'+p+'" onerror="this.replaceWith(document.createTextNode(\''+p+'\'))" />'+
+        '<b class="pab">'+p+'</b>'+
         (ml?'<i class="mlk'+(inLockOff?" lo":"")+'">'+(inLockOff?'LOCK OFF':'LOCK')+'</i>':'')+
 '</div>';
     }).join("");
@@ -1983,7 +1725,7 @@ function reveal(me) {
           '<span class="scpts">'+f.pts+'</span></div>';
       }).join("");
       return '<div class="sccard">'+
-        '<div class="schead"><img src="'+logo(side)+'" onerror="this.style.display=\'none\'" />'+
+        '<div class="schead"><b class="pab big" style="background:'+col(side)+'">'+side+'</b>'+
         '<span>IF '+side+' COVERS</span></div>'+
         '<div class="scwin">'+(winners.length > 1
           ? winners.map(function(w){ return esc(w.m.short); }).join(" and ") + " tie at " + top
@@ -2035,8 +1777,7 @@ function revealPast(me, back) {
 
   const head = '<div class="gcell ghead corner">PLAYER</div>' + games.map(function(g){
     return '<div class="gcell ghead">'+
-      '<span class="hteams"><img src="'+logo(g.away)+'" onerror="this.style.display=\'none\'" /><u>at</u>'+
-      '<img src="'+logo(g.home)+'" onerror="this.style.display=\'none\'" /></span>'+
+      '<span class="hteams"><em style="color:'+col(g.away)+'">'+g.away+'</em><u>at</u><em style="color:'+col(g.home)+'">'+g.home+'</em></span>'+
       '<i class="hspread">'+(g.line==null?"—":'<em>'+g.fav+'</em>-'+g.line)+'</i>'+
       '<b>'+(g.archived.ats === "PUSH" ? "PUSH" : g.archived.ats)+'</b></div>';
   }).join("");
@@ -2051,7 +1792,7 @@ function revealPast(me, back) {
       const ml = mlockFor(x.m.id) === g.id;
       return '<div class="gcell pick'+(right?" right":"")+(wrong?" wrong":"")+(push?" push":"")+
         '" style="'+tint(p)+";--full:"+col(p)+'">'+
-        '<img src="'+logo(p)+'" alt="'+p+'" onerror="this.replaceWith(document.createTextNode(\''+p+'\'))" />'+
+        '<b class="pab">'+p+'</b>'+
         (ml?'<i class="mlk">LOCK</i>':'')+'</div>';
     }).join("");
     return '<div class="gcell gname'+(x.m.id===me.id?" me":"")+(i===0&&best>0?" lead":"")+'">'+
