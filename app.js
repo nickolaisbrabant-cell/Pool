@@ -476,6 +476,18 @@ function weekWinners(wk) {
   if (!best) return [];
   return Object.keys(tally).filter(function(who){ return tally[who] === best; });
 }
+// season record on mortal locks only: wins-losses(-pushes)
+function lockRecord(who) {
+  const res = LGS().res || {}, picks = LGS().picks || {}, ml = LGS().mlock || {};
+  let w = 0, l = 0, p = 0;
+  Object.keys(res).forEach(function(wk){
+    const gid = (ml[wk] || {})[who]; if (!gid) return;
+    const r = res[wk][gid], pick = ((picks[wk] || {})[who] || {})[gid];
+    if (!r || !pick) return;
+    if (r.ats === "PUSH") p++; else if (r.ats === pick) w++; else l++;
+  });
+  return { w:w, l:l, p:p, text: w + "-" + l + (p ? "-" + p : "") };
+}
 function weeksWonTally() {
   const out = {};
   completedWeeks().forEach(function(wk){
@@ -565,7 +577,8 @@ function combinedSeason(me) {
     const lead = r.per === best && best > 0;
     return '<div class="gcell gname'+(r.m.id===me.id?" me":"")+(lead?" lead":"")+'">'+crest(r.m,24)+
       '<span class="gninner"><span class="gnname">'+esc(r.m.short)+'</span>'+
-      (r.won ? '<span class="gnsub"><u>'+r.won+' week'+(r.won===1?"":"s")+' won</u></span>' : "")+
+      '<span class="gnsub"><u style="white-space:nowrap">★ '+lockRecord(r.m.id).text+
+      (r.won ? ' · '+r.won+' won' : "")+'</u></span>'+
       '</span></div>'+
       r.byWeek.map(function(x){
         return '<div class="gcell wk'+(x===null?" empty":"")+'">'+(x===null?"·":x)+'</div>';
@@ -590,7 +603,7 @@ function combinedSeason(me) {
     '<div class="gridwrap"><div class="grid" style="grid-template-columns:132px repeat('+
       pd.weeks.length+',minmax(30px,1fr)) 44px 44px">'+head+body+'</div></div>'+
     '<div class="note">POT is this six week period, the money column. SZN is the whole season. '+
-    'Mortal locks count double in both.</div>';
+    'Mortal locks count double in both. ★ is each player\'s record on mortal locks this season.</div>';
 }
 
 function seasonView(me) {
@@ -629,6 +642,7 @@ function seasonView(me) {
           crest(r.m,30)+
           '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:15px">'+esc(r.m.short)+'</div>'+
           '<div style="font-size:11.5px;color:var(--muted)">'+r.w+'-'+r.l+(r.p?"-"+r.p:"")+' · '+pct+'%'+
+          ' · <span title="Mortal lock record">★ '+lockRecord(r.m.id).text+'</span>'+
           (r.won ? ' · <b style="color:var(--gold)">'+r.won+' week'+(r.won===1?"":"s")+' won</b>' : "")+
           '</div></div>'+
           '<span class="seasonpts">'+r.pts+'</span>'+
