@@ -1425,7 +1425,31 @@ function shameCard(me) {
   '</div>';
 }
 
+// Each team's against-the-spread record this season, from this league's own
+// graded results, so it matches exactly how picks were scored.
+function atsRecords() {
+  const res = LGS().res || {}, out = {};
+  const add = function(t, k){ (out[t] = out[t] || { w:0, l:0, p:0 })[k]++; };
+  Object.keys(res).forEach(function(wk){
+    Object.keys(res[wk]).forEach(function(gid){
+      const r = res[wk][gid];
+      if (!r || !r.ats || !r.home || !r.away) return;
+      if (r.ats === "PUSH") { add(r.home, "p"); add(r.away, "p"); }
+      else { add(r.ats, "w"); add(r.ats === r.home ? r.away : r.home, "l"); }
+    });
+  });
+  return out;
+}
 function picksView(me) {
+  const ats = atsRecords();
+  const atsText = function(t){ const r = ats[t]; return r ? r.w + "-" + r.l + (r.p ? "-" + r.p : "") : ""; };
+  // hot = covering 70%+ of at least five decided games, cold = 30% or less
+  const atsMood = function(t){
+    const r = ats[t]; if (!r || r.w + r.l < 5) return "";
+    const pct = r.w / (r.w + r.l);
+    return pct >= .7 ? " hot" : pct <= .3 ? " cold" : "";
+  };
+  const anyAts = Object.keys(ats).length > 0;
   const mine = picksOf(me.id);
   const ml = mlockOf(me.id);
   const lockedIn = lockOf(me.id);
@@ -1442,7 +1466,8 @@ function picksView(me) {
         '<span class="pface"></span><span class="psheen"></span><span class="phair"></span>'+
         (on ? '<svg class="pring"><rect></rect></svg>' : '')+
         '<span class="pinner">'+
-          '<img class="plogo" src="'+logo(t)+'" onerror="this.style.visibility=\'hidden\'" />'+
+          '<span class="plogowrap"><img class="plogo" src="'+logo(t)+'" onerror="this.style.visibility=\'hidden\'" />'+
+          (atsText(t) ? '<i class="pats'+atsMood(t)+'">'+atsText(t)+'</i>' : '')+'</span>'+
           '<span style="text-align:left"><span class="pabbr" style="display:block">'+t+'</span>'+
           '<span class="ptag" style="display:block">'+tag+'</span></span>'+
           '<span class="pval">'+(g.line==null?"—":(fav?"-"+g.line:"+"+g.line))+
@@ -1470,7 +1495,8 @@ function picksView(me) {
       ? '<div class="flag"><b>The Wendell Rule is live</b><br>You touched an opener, so you are in for $'+FEE_OF()+' whether or not you finish the card. Pay Corey.</div>'
       : '<div class="card" style="padding:12px 14px"><b style="font-size:13.5px">No pick, no fee</b><br><span style="font-size:12.5px;color:var(--muted)">Touch either opener and Rule 7 puts you in for the full $'+FEE_OF()+', finished card or not.</span></div>')+
     (rows || '<div class="note">ESPN has not posted lines for this week yet. They usually land a few days out.</div>')+
-    '<div class="note">One mortal lock per week. Right and it counts double. Wrong and it counts nothing.</div>'+
+    '<div class="note">One mortal lock per week. Right and it counts double. Wrong and it counts nothing.'+
+      (anyAts ? ' The record under each logo is that team against the spread this season.' : '')+'</div>'+
     (tbGame() ? '<div class="card" style="padding:13px 14px;margin-top:2px">'+
       '<div style="font-size:9.5px;letter-spacing:1.8px;font-weight:800;color:var(--muted)">TIEBREAKER</div>'+
       '<div style="font-size:13px;margin-top:5px;line-height:1.45">Total points scored in '+
